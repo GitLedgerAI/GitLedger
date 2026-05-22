@@ -5,6 +5,11 @@ export const metadata: Metadata = {
   title: "GitLedger — Your Review Has Skin in the Game",
   description:
     "GitLedger transforms PR code reviews into staked EAS attestations on Base L2. Stake USDC on every review. Earn yield for clean code. Get slashed for bugs.",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
   openGraph: {
     title: "GitLedger — Your Review Has Skin in the Game",
     description: "Stake your reputation. Every PR review on-chain.",
