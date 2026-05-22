@@ -4,7 +4,6 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import { useRef } from "react";
 import CellGrid from "@/components/CellGrid";
-import Countdown from "@/components/Countdown";
 import EmailSignup from "@/components/EmailSignup";
 import FloatingLogos from "@/components/FloatingLogo";
 import Footer from "@/components/Footer";
@@ -150,16 +149,6 @@ export default function Home() {
             Stake USDC on every PR approval. Earn yield when code ships clean.
             Get slashed when it breaks production.
           </motion.p>
-
-          {/* Countdown */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.72 }}
-            className="mb-14"
-          >
-            <Countdown />
-          </motion.div>
 
           {/* Divider */}
           <motion.div
