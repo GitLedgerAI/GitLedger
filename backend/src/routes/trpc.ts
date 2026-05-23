@@ -3,7 +3,6 @@ import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client';
 import { attestations, promptStakeJobs, repos, reviewers, stakes } from '../db/schema';
-import { confirmStakeOnchainAndActivate } from '../services/stakeConfirmation';
 import type { TRPCContext, UserRole } from '../trpc/context';
 import { reviewerExists } from '../trpc/context';
 
@@ -33,6 +32,22 @@ const protectedProcedure = t.procedure.use(requireAuth);
 const adminProcedure = t.procedure.use(requireAuth).use(requireRole(['admin', 'internal']));
 
 const VerdictSchema = z.enum(['ALL', 'ACTIVE', 'CLEAN', 'SLASHED']);
+
+type LeaderboardRow = {
+  address: string;
+  basename: string;
+  githubLogin: string;
+  reputationScore: number;
+  totalStakedUsdc: number;
+  totalYieldUsdc: number;
+  totalSlashedUsdc: number;
+  cleanCount: number;
+  slashCount: number;
+  languages: string[];
+  lastActiveAt: string;
+  createdAt: string;
+  accuracyRate: number;
+};
 
 const reviewerRouter = t.router({
   getByBasename: publicProcedure.input(z.object({ basename: z.string() })).query(async ({ input }) => {
@@ -66,7 +81,7 @@ const reviewerRouter = t.router({
         filtered = filtered.filter((r) => (r.basename ?? '').toLowerCase().includes(s) || (r.githubLogin ?? '').toLowerCase().includes(s));
       }
 
-      const mapped = filtered.map((r) => {
+      const mapped: LeaderboardRow[] = filtered.map((r) => {
         const clean = r.cleanCount ?? 0;
         const slash = r.slashCount ?? 0;
         const accuracyRate = clean + slash > 0 ? clean / (clean + slash) : 1;
@@ -91,7 +106,7 @@ const reviewerRouter = t.router({
       mapped.sort((a, b) => {
         if (sort === 'yield') return b.totalYieldUsdc - a.totalYieldUsdc;
         if (sort === 'stakes') return b.totalStakedUsdc - a.totalStakedUsdc;
-        if (sort === 'accuracy') return (b.accuracyRate ?? 0) - (a.accuracyRate ?? 0);
+        if (sort === 'accuracy') return b.accuracyRate - a.accuracyRate;
         return b.reputationScore - a.reputationScore;
       });
       return mapped;
@@ -153,6 +168,7 @@ const stakeRouter = t.router({
         throw new TRPCError({ code: 'FORBIDDEN', message: 'basename_mismatch' });
       }
 
+      const { confirmStakeOnchainAndActivate } = await import('../services/stakeConfirmation');
       const result = await confirmStakeOnchainAndActivate({
         stakeId: input.stakeId,
         reviewerBasename: input.basename,
