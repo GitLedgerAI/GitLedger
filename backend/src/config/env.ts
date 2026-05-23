@@ -5,10 +5,21 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
-  GITHUB_WEBHOOK_SECRET: z.string().min(1),
   BASE_RPC_URL: z.string().url(),
+  SIGNER_PRIVATE_KEY: z.string().min(1),
   GITLEDGER_CONTRACT: z.string().min(1),
+  EAS_CONTRACT_BASE: z.string().min(1),
   EAS_SCHEMA_UID: z.string().min(1),
+  TREASURY_ADDRESS: z.string().min(1),
+  GITHUB_APP_ID: z.string().min(1),
+  GITHUB_APP_CLIENT_ID: z.string().min(1),
+  GITHUB_APP_PRIVATE_KEY: z.string().min(1),
+  GITHUB_WEBHOOK_SECRET: z.string().min(1),
+  GITHUB_WEBHOOK_URL: z.string().url(),
+  GITHUB_TOKEN: z.string().min(1),
+  ORACLE_MODE: z.enum(['backend', 'chainlink']).default('backend'),
+  ORACLE_POLL_INTERVAL_SECONDS: z.coerce.number().int().positive().default(86400),
+  ORACLE_WINDOW_DAYS: z.coerce.number().int().positive().default(30),
 });
 
 export const env = envSchema.parse(process.env);

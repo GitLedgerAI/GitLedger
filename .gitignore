@@ -4,3 +4,7 @@ node_modules/
 *.env
 *.env.local
 .env.*
+backend/.env
+backend/TODO.md
+*.pem
+backend/*.private-key.pem

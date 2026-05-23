@@ -4,7 +4,7 @@ import { isApprovedReviewSubmission, verifyGitHubSignature, type GitHubReviewEve
 
 type RedisLike = {
   get: (key: string) => Promise<string | null>;
-  set: (key: string, value: string, mode: 'EX', seconds: number) => Promise<unknown>;
+  set: (key: string, value: string, seconds: number) => Promise<unknown>;
 };
 
 type AppOptions = {
@@ -32,7 +32,7 @@ export function createApp(options: AppOptions) {
     const dedupKey = `gh:${deliveryId}`;
     const isDup = await options.redis.get(dedupKey);
     if (isDup) return c.text('dup', 200);
-    await options.redis.set(dedupKey, '1', 'EX', 30);
+    await options.redis.set(dedupKey, '1', 30);
 
     const payload = JSON.parse(rawBody) as GitHubReviewEvent;
     if (isApprovedReviewSubmission(eventName, payload)) {
