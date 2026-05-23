@@ -12,7 +12,7 @@ export type GitHubReviewEvent = {
   action: string;
   review?: { state?: string; user?: { login?: string } };
   repository?: { full_name?: string };
-  pull_request?: { number?: number };
+  pull_request?: { number?: number; title?: string };
 };
 
 export type GitHubInstallationEvent = {

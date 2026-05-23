@@ -12,6 +12,7 @@ import {
 import { getHealthReport } from './services/health';
 import { listPromptStakeJobs } from './services/internalJobs';
 import { configurePromptStakeQueue, setPromptStakePublisher } from './services/queue';
+import { handleApprovedReviewSubmitted } from './services/reviewWebhookHandlers';
 
 await runMigrations();
 
@@ -44,6 +45,7 @@ const app = createApp({
     set: (key: string, value: string, seconds: number) => redisClient.set(key, value, { EX: seconds }),
   },
   healthCheck,
+  onApprovedReviewSubmitted: handleApprovedReviewSubmitted,
   onInstallationCreated: handleInstallationCreated,
   onInstallationDeleted: handleInstallationDeleted,
   onInstallationRepositoriesAdded: handleInstallationRepositoriesAdded,

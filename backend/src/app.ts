@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { enqueuePromptStake } from './services/queue';
 import {
   isApprovedReviewSubmission,
   isInstallationCreated,
@@ -22,6 +21,12 @@ type AppOptions = {
   redis: RedisLike;
   minStakeUsdc?: number;
   healthCheck?: () => Promise<HealthReport>;
+  onApprovedReviewSubmitted?: (input: {
+    reviewerLogin: string;
+    repoSlug: string;
+    prId: number;
+    prTitle?: string;
+  }) => Promise<unknown>;
   onInstallationCreated?: (installationId: number) => Promise<void>;
   onInstallationDeleted?: (installationId: number) => Promise<void>;
   onInstallationRepositoriesAdded?: (
@@ -38,7 +43,6 @@ type AppOptions = {
 
 export function createApp(options: AppOptions) {
   const app = new Hono();
-  const minStakeUsdc = options.minStakeUsdc ?? 10_000_000;
 
   app.get('/health', async (c) => {
     if (!options.healthCheck) return c.json({ ok: true, service: 'gitledger-backend' });
@@ -81,12 +85,12 @@ export function createApp(options: AppOptions) {
 
     if (eventName === 'pull_request_review') {
       const payload = JSON.parse(rawBody) as GitHubReviewEvent;
-      if (isApprovedReviewSubmission(eventName, payload)) {
-        await enqueuePromptStake({
+      if (isApprovedReviewSubmission(eventName, payload) && options.onApprovedReviewSubmitted) {
+        await options.onApprovedReviewSubmitted({
           reviewerLogin: payload.review?.user?.login ?? '',
           repoSlug: payload.repository?.full_name ?? '',
           prId: payload.pull_request?.number ?? 0,
-          minStakeUsdc,
+          prTitle: payload.pull_request?.title,
         });
       }
     }
