@@ -1,8 +1,9 @@
 import { createClient } from 'redis';
-import { env } from './config/env';
 import { createApp } from './app';
+import { env } from './config/env';
 import { pgPool } from './db/client';
 import { runMigrations } from './db/migrate';
+import { handleInstallationCreated } from './services/githubWebhookHandlers';
 import { getHealthReport } from './services/health';
 
 await runMigrations();
@@ -31,6 +32,7 @@ const app = createApp({
     set: (key: string, value: string, seconds: number) => redisClient.set(key, value, { EX: seconds }),
   },
   healthCheck,
+  onInstallationCreated: handleInstallationCreated,
 });
 
 export default {

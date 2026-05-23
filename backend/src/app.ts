@@ -3,11 +3,10 @@ import { enqueuePromptStake } from './services/queue';
 import {
   isApprovedReviewSubmission,
   isInstallationCreated,
-  verifyGitHubSignature,
   type GitHubInstallationEvent,
   type GitHubReviewEvent,
+  verifyGitHubSignature,
 } from './services/githubWebhook';
-import { handleInstallationCreated } from './services/githubWebhookHandlers';
 import type { HealthReport } from './services/health';
 
 type RedisLike = {
@@ -20,6 +19,7 @@ type AppOptions = {
   redis: RedisLike;
   minStakeUsdc?: number;
   healthCheck?: () => Promise<HealthReport>;
+  onInstallationCreated?: (installationId: number) => Promise<void>;
 };
 
 export function createApp(options: AppOptions) {
@@ -61,8 +61,8 @@ export function createApp(options: AppOptions) {
 
     if (eventName === 'installation') {
       const payload = JSON.parse(rawBody) as GitHubInstallationEvent;
-      if (isInstallationCreated(eventName, payload)) {
-        await handleInstallationCreated(payload.installation!.id!);
+      if (isInstallationCreated(eventName, payload) && options.onInstallationCreated) {
+        await options.onInstallationCreated(payload.installation!.id!);
       }
     }
 
