@@ -3,7 +3,7 @@ import Image from "next/image";
 const COLS = {
   Protocol:   ["How It Works", "Stake Mechanics", "EAS Attestations", "x402 API"],
   Build:      ["GitHub App", "Smart Contracts", "Chainlink Oracle", "API Docs"],
-  Community:  ["Twitter / X", "Discord", "Telegram", "Blog"],
+  Community:  ["Twitter / X", "Telegram"],
 };
 
 export default function Footer() {
