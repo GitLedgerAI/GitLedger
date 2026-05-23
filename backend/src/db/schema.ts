@@ -24,6 +24,22 @@ export const reviewers = pgTable('reviewers', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+export const attestations = pgTable('attestations', {
+  uid: text('uid').primaryKey(),
+  basename: text('basename'),
+  reviewerAddress: text('reviewer_address'),
+  repoSlug: text('repo_slug'),
+  prId: integer('pr_id'),
+  prTitle: text('pr_title'),
+  stakeAmount: bigint('stake_amount', { mode: 'number' }),
+  verdict: text('verdict'),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  reputationDelta: integer('reputation_delta').default(0),
+  repoLanguages: text('repo_languages').array(),
+  txHash: text('tx_hash'),
+});
+
 export const stakes = pgTable('stakes', {
   id: uuid('id').primaryKey().defaultRandom(),
   stakeId: text('stake_id').unique().notNull(),

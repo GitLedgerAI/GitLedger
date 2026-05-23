@@ -20,9 +20,54 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gitledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     defaults:
       run:
         working-directory: backend
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gitledger
+      REDIS_URL: redis://localhost:6379
+      PROMPT_STAKE_QUEUE_NAME: gitledger:queue:prompt-stake
+      PROMPT_STAKE_DLQ_NAME: gitledger:queue:prompt-stake:dlq
+      PROMPT_STAKE_MAX_ATTEMPTS: "3"
+      INTERNAL_API_TOKEN: testtoken
+      BASE_RPC_URL: https://mainnet.base.org
+      SIGNER_PRIVATE_KEY: 0x1111111111111111111111111111111111111111111111111111111111111111
+      GITLEDGER_CONTRACT: 0x0000000000000000000000000000000000000000
+      EAS_CONTRACT_BASE: 0x4200000000000000000000000000000000000021
+      EAS_SCHEMA_UID: 0x0000000000000000000000000000000000000000000000000000000000000000
+      TREASURY_ADDRESS: 0x0000000000000000000000000000000000000000
+      GITHUB_APP_ID: 1
+      GITHUB_APP_CLIENT_ID: test
+      GITHUB_APP_PRIVATE_KEY: test
+      GITHUB_WEBHOOK_SECRET: test
+      GITHUB_WEBHOOK_URL: https://example.com/webhooks/github
+      GITHUB_TOKEN: test
+      ORACLE_MODE: backend
+      ORACLE_POLL_INTERVAL_SECONDS: "86400"
+      ORACLE_WINDOW_DAYS: "30"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,8 +83,11 @@ jobs:
       - name: Typecheck
         run: bun run check
 
-      - name: Run tests
+      - name: Run unit tests
         run: bun test
+
+      - name: Run integration service checks
+        run: bun run test:integration
 
   build:
     name: build

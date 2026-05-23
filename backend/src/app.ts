@@ -43,6 +43,13 @@ type AppOptions = {
     attestationUid: string;
     amountUsdc?: number;
   }) => Promise<{ ok: boolean; reason?: string }>;
+  onConfirmStake?: (input: {
+    stakeId: string;
+    reviewerBasename: string;
+    repoSlug: string;
+    prId: number;
+    amountUsdc: number;
+  }) => Promise<{ ok: boolean; reason?: string; txHash?: string; onchainStakeId?: string | null }>;
   internalApiToken?: string;
   listPromptStakeJobs?: (limit: number, status?: 'received' | 'processed' | 'failed') => Promise<unknown[]>;
 };
@@ -95,6 +102,35 @@ export function createApp(options: AppOptions) {
       txHashStake: body.txHashStake ?? '',
       attestationUid: body.attestationUid ?? '',
       amountUsdc: body.amountUsdc,
+    });
+
+    if (!result.ok) return c.json(result, 400);
+    return c.json(result, 200);
+  });
+
+  app.post('/internal/stakes/confirm', async (c) => {
+    if (!options.internalApiToken || !options.onConfirmStake) {
+      return c.json({ error: 'not_configured' }, 503);
+    }
+
+    const auth = c.req.header('authorization') ?? '';
+    const expected = `Bearer ${options.internalApiToken}`;
+    if (auth !== expected) return c.json({ error: 'unauthorized' }, 401);
+
+    const body = (await c.req.json()) as {
+      stakeId?: string;
+      reviewerBasename?: string;
+      repoSlug?: string;
+      prId?: number;
+      amountUsdc?: number;
+    };
+
+    const result = await options.onConfirmStake({
+      stakeId: body.stakeId ?? '',
+      reviewerBasename: body.reviewerBasename ?? '',
+      repoSlug: body.repoSlug ?? '',
+      prId: body.prId ?? 0,
+      amountUsdc: body.amountUsdc ?? 0,
     });
 
     if (!result.ok) return c.json(result, 400);

@@ -12,7 +12,9 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "db:migrate:sql": "bun src/scripts/migrate.ts",
-    "worker:start": "bun src/scripts/worker.ts"
+    "worker:start": "bun src/scripts/worker.ts",
+    "oracle:run": "bun src/scripts/oracle.ts",
+    "test:integration": "RUN_INTEGRATION=1 bun test test/integration.services.test.ts"
   },
   "dependencies": {
     "@trpc/server": "^11.0.0",
