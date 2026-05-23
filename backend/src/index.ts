@@ -4,16 +4,14 @@ import { env } from './config/env';
 import { pgPool } from './db/client';
 import { runMigrations } from './db/migrate';
 import {
-  configurePromptStakeQueue,
-  setPromptStakePublisher,
-} from './services/queue';
-import {
   handleInstallationCreated,
   handleInstallationDeleted,
   handleInstallationRepositoriesAdded,
   handleInstallationRepositoriesRemoved,
 } from './services/githubWebhookHandlers';
 import { getHealthReport } from './services/health';
+import { listPromptStakeJobs } from './services/internalJobs';
+import { configurePromptStakeQueue, setPromptStakePublisher } from './services/queue';
 
 await runMigrations();
 
@@ -50,6 +48,8 @@ const app = createApp({
   onInstallationDeleted: handleInstallationDeleted,
   onInstallationRepositoriesAdded: handleInstallationRepositoriesAdded,
   onInstallationRepositoriesRemoved: handleInstallationRepositoriesRemoved,
+  internalApiToken: env.INTERNAL_API_TOKEN,
+  listPromptStakeJobs,
 });
 
 export default {

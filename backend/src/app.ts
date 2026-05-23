@@ -32,6 +32,8 @@ type AppOptions = {
     installationId: number,
     repositoriesRemoved: Array<{ full_name?: string }>,
   ) => Promise<void>;
+  internalApiToken?: string;
+  listPromptStakeJobs?: (limit: number, status?: 'received' | 'processed' | 'failed') => Promise<unknown[]>;
 };
 
 export function createApp(options: AppOptions) {
@@ -42,6 +44,24 @@ export function createApp(options: AppOptions) {
     if (!options.healthCheck) return c.json({ ok: true, service: 'gitledger-backend' });
     const report = await options.healthCheck();
     return c.json(report, report.ok ? 200 : 503);
+  });
+
+  app.get('/internal/prompt-stake-jobs', async (c) => {
+    if (!options.internalApiToken || !options.listPromptStakeJobs) {
+      return c.json({ error: 'not_configured' }, 503);
+    }
+
+    const auth = c.req.header('authorization') ?? '';
+    const expected = `Bearer ${options.internalApiToken}`;
+    if (auth !== expected) return c.json({ error: 'unauthorized' }, 401);
+
+    const limitRaw = c.req.query('limit');
+    const limit = Math.min(Math.max(Number(limitRaw ?? '25') || 25, 1), 100);
+    const statusRaw = c.req.query('status');
+    const status = statusRaw === 'received' || statusRaw === 'processed' || statusRaw === 'failed' ? statusRaw : undefined;
+
+    const jobs = await options.listPromptStakeJobs(limit, status);
+    return c.json({ ok: true, count: jobs.length, jobs });
   });
 
   app.post('/webhooks/github', async (c) => {
