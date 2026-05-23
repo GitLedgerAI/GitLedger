@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
 import { createApp } from '../src/app';
+import { env } from '../src/config/env';
 
 type Store = Record<string, string>;
 
@@ -80,7 +81,7 @@ describe('createApp routes', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        authorization: 'Bearer token-1',
+        authorization: `Bearer ${env.INTERNAL_SERVICE_TOKEN}`,
       },
       body: JSON.stringify({ stakeId: 's1', txHashStake: '0x1', attestationUid: '0x2' }),
     });
