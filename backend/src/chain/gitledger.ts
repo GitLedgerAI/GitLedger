@@ -47,7 +47,22 @@ export async function writeStakeReview(params: {
     }
   }
 
-  return { txHash: hash, stakeId };
+  let attestationUid: `0x${string}` | null = null;
+  if (stakeId) {
+    const stakeRecord = await basePublicClient.readContract({
+      address: contractAddress,
+      abi: gitLedgerAbi,
+      functionName: 'stakes',
+      args: [stakeId],
+    });
+
+    const uid = stakeRecord[6] as `0x${string}`;
+    if (uid && uid !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+      attestationUid = uid;
+    }
+  }
+
+  return { txHash: hash, stakeId, attestationUid };
 }
 
 export async function writeSlashReview(params: { stakeId: `0x${string}`; reporter: `0x${string}` }) {

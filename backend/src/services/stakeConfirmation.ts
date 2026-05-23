@@ -15,6 +15,7 @@ export async function confirmStakeOnchainAndActivate(input: ConfirmStakeInput): 
   reason?: string;
   txHash?: string;
   onchainStakeId?: string | null;
+  attestationUid?: string | null;
 }> {
   if (!input.stakeId || !input.reviewerBasename || !input.repoSlug || !input.prId || !input.amountUsdc) {
     return { ok: false, reason: 'missing_required_fields' };
@@ -27,11 +28,14 @@ export async function confirmStakeOnchainAndActivate(input: ConfirmStakeInput): 
     amountUsdc: BigInt(input.amountUsdc),
   });
 
+  if (!onchain.attestationUid) {
+    return { ok: false, reason: 'attestation_uid_unavailable' };
+  }
+
   const activated = await activatePendingStake({
     stakeId: input.stakeId,
     txHashStake: onchain.txHash,
-    // Placeholder until EAS attestation UID is read from emitted events or downstream EAS indexing.
-    attestationUid: onchain.stakeId ?? '0x0000000000000000000000000000000000000000000000000000000000000000',
+    attestationUid: onchain.attestationUid,
     amountUsdc: input.amountUsdc,
   });
 
@@ -41,5 +45,6 @@ export async function confirmStakeOnchainAndActivate(input: ConfirmStakeInput): 
     ok: true,
     txHash: onchain.txHash,
     onchainStakeId: onchain.stakeId,
+    attestationUid: onchain.attestationUid,
   };
 }
