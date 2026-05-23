@@ -4,6 +4,10 @@ import { env } from './config/env';
 import { pgPool } from './db/client';
 import { runMigrations } from './db/migrate';
 import {
+  configurePromptStakeQueue,
+  setPromptStakePublisher,
+} from './services/queue';
+import {
   handleInstallationCreated,
   handleInstallationDeleted,
   handleInstallationRepositoriesAdded,
@@ -18,6 +22,11 @@ redisClient.on('error', (err) => {
   console.error('[redis] client error', err);
 });
 await redisClient.connect();
+
+configurePromptStakeQueue(env.PROMPT_STAKE_QUEUE_NAME);
+setPromptStakePublisher(async (queueName, payload) => {
+  await redisClient.lPush(queueName, payload);
+});
 
 const healthCheck = () =>
   getHealthReport({

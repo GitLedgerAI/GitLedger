@@ -5,6 +5,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
+  PROMPT_STAKE_QUEUE_NAME: z.string().default('gitledger:queue:prompt-stake'),
   BASE_RPC_URL: z.string().url(),
   SIGNER_PRIVATE_KEY: z.string().min(1),
   GITLEDGER_CONTRACT: z.string().min(1),

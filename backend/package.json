@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "db:migrate:sql": "bun src/scripts/migrate.ts"
+    "db:migrate:sql": "bun src/scripts/migrate.ts",
+    "worker:start": "bun src/scripts/worker.ts"
   },
   "dependencies": {
     "@trpc/server": "^11.0.0",
