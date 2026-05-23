@@ -1,4 +1,4 @@
-import { bigint, boolean, integer, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, integer, jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const repos = pgTable('repos', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -51,4 +51,19 @@ export const attestationEvents = pgTable('attestation_events', {
   amountUsdc: integer('amount_usdc'),
   attestationUid: text('attestation_uid'),
   txHash: text('tx_hash'),
+});
+
+export const promptStakeJobs = pgTable('prompt_stake_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  queueName: text('queue_name').notNull(),
+  reviewerLogin: text('reviewer_login'),
+  repoSlug: text('repo_slug'),
+  prId: integer('pr_id'),
+  minStakeUsdc: integer('min_stake_usdc'),
+  payload: jsonb('payload').notNull(),
+  status: text('status').notNull().default('received'),
+  attempts: integer('attempts').notNull().default(1),
+  error: text('error'),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+  processedAt: timestamp('processed_at'),
 });
