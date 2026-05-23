@@ -56,6 +56,7 @@ contract GitLedger {
     error InvalidAmount();
     error InvalidAddress();
     error TokenTransferFailed();
+    error AlreadyResolved();
 
     constructor(address eas_, address usdc_, bytes32 schema_, address oracle_, address treasury_) {
         if (eas_ == address(0) || usdc_ == address(0) || oracle_ == address(0) || treasury_ == address(0)) {
@@ -112,6 +113,7 @@ contract GitLedger {
         if (reporter == address(0)) revert InvalidAddress();
 
         StakeRecord storage s = stakes[stakeId];
+        if (s.state == StakeState.Slashed || s.state == StakeState.Released) revert AlreadyResolved();
         if (s.state != StakeState.Active) revert InvalidStakeState();
 
         s.state = StakeState.Slashed;
@@ -145,6 +147,7 @@ contract GitLedger {
 
     function releaseYield(bytes32 stakeId) external onlyOracle {
         StakeRecord storage s = stakes[stakeId];
+        if (s.state == StakeState.Slashed || s.state == StakeState.Released) revert AlreadyResolved();
         if (s.state != StakeState.Active) revert InvalidStakeState();
         if (block.timestamp <= s.stakedAt + ORACLE_WINDOW) revert OracleWindowNotFinished();
 
@@ -194,8 +197,6 @@ contract GitLedger {
     }
 
     function _buildAttestationPayload(AttestationPayload memory payload) internal view returns (bytes memory) {
-        // Schema-aligned encoding:
-        // basename, repoSlug, prId, stakeAmount, verdict, reviewedAt, resolvedAt, reputationDelta, repoLanguages
         return abi.encode(
             schema,
             payload.basename,
