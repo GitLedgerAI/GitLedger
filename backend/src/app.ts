@@ -1,5 +1,6 @@
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { Hono } from 'hono';
+import { env } from './config/env';
 import { appRouter } from './routes/trpc';
 import { createTRPCContext } from './trpc/context';
 import {
@@ -53,9 +54,15 @@ type AppOptions = {
     prId: number;
     amountUsdc: number;
   }) => Promise<{ ok: boolean; reason?: string; txHash?: string; onchainStakeId?: string | null; attestationUid?: string | null }>;
-  internalApiToken?: string;
   listPromptStakeJobs?: (limit: number, status?: 'received' | 'processed' | 'failed') => Promise<unknown[]>;
 };
+
+function requireInternalAuth(authHeader: string | null | undefined): boolean {
+  if (!authHeader) return false;
+  if (!authHeader.toLowerCase().startsWith('bearer ')) return false;
+  const token = authHeader.slice(7).trim();
+  return token === env.INTERNAL_SERVICE_TOKEN || token === env.ADMIN_API_TOKEN || token === env.INTERNAL_API_TOKEN;
+}
 
 export function createApp(options: AppOptions) {
   const app = new Hono();
@@ -76,13 +83,8 @@ export function createApp(options: AppOptions) {
   });
 
   app.get('/internal/prompt-stake-jobs', async (c) => {
-    if (!options.internalApiToken || !options.listPromptStakeJobs) {
-      return c.json({ error: 'not_configured' }, 503);
-    }
-
-    const auth = c.req.header('authorization') ?? '';
-    const expected = `Bearer ${options.internalApiToken}`;
-    if (auth !== expected) return c.json({ error: 'unauthorized' }, 401);
+    if (!options.listPromptStakeJobs) return c.json({ error: 'not_configured' }, 503);
+    if (!requireInternalAuth(c.req.header('authorization'))) return c.json({ error: 'unauthorized' }, 401);
 
     const limitRaw = c.req.query('limit');
     const limit = Math.min(Math.max(Number(limitRaw ?? '25') || 25, 1), 100);
@@ -94,21 +96,10 @@ export function createApp(options: AppOptions) {
   });
 
   app.post('/internal/stakes/activate', async (c) => {
-    if (!options.internalApiToken || !options.onActivatePendingStake) {
-      return c.json({ error: 'not_configured' }, 503);
-    }
+    if (!options.onActivatePendingStake) return c.json({ error: 'not_configured' }, 503);
+    if (!requireInternalAuth(c.req.header('authorization'))) return c.json({ error: 'unauthorized' }, 401);
 
-    const auth = c.req.header('authorization') ?? '';
-    const expected = `Bearer ${options.internalApiToken}`;
-    if (auth !== expected) return c.json({ error: 'unauthorized' }, 401);
-
-    const body = (await c.req.json()) as {
-      stakeId?: string;
-      txHashStake?: string;
-      attestationUid?: string;
-      amountUsdc?: number;
-    };
-
+    const body = (await c.req.json()) as { stakeId?: string; txHashStake?: string; attestationUid?: string; amountUsdc?: number };
     const result = await options.onActivatePendingStake({
       stakeId: body.stakeId ?? '',
       txHashStake: body.txHashStake ?? '',
@@ -121,22 +112,10 @@ export function createApp(options: AppOptions) {
   });
 
   app.post('/internal/stakes/confirm', async (c) => {
-    if (!options.internalApiToken || !options.onConfirmStake) {
-      return c.json({ error: 'not_configured' }, 503);
-    }
+    if (!options.onConfirmStake) return c.json({ error: 'not_configured' }, 503);
+    if (!requireInternalAuth(c.req.header('authorization'))) return c.json({ error: 'unauthorized' }, 401);
 
-    const auth = c.req.header('authorization') ?? '';
-    const expected = `Bearer ${options.internalApiToken}`;
-    if (auth !== expected) return c.json({ error: 'unauthorized' }, 401);
-
-    const body = (await c.req.json()) as {
-      stakeId?: string;
-      reviewerBasename?: string;
-      repoSlug?: string;
-      prId?: number;
-      amountUsdc?: number;
-    };
-
+    const body = (await c.req.json()) as { stakeId?: string; reviewerBasename?: string; repoSlug?: string; prId?: number; amountUsdc?: number };
     const result = await options.onConfirmStake({
       stakeId: body.stakeId ?? '',
       reviewerBasename: body.reviewerBasename ?? '',

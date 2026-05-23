@@ -29,7 +29,7 @@ const requireRole = (roles: UserRole[]) =>
 
 const publicProcedure = t.procedure;
 const protectedProcedure = t.procedure.use(requireAuth);
-const adminProcedure = t.procedure.use(requireAuth).use(requireRole(['admin', 'internal']));
+const adminProcedure = t.procedure.use(requireAuth).use(requireRole(['admin', 'internal_service']));
 
 const VerdictSchema = z.enum(['ALL', 'ACTIVE', 'CLEAN', 'SLASHED']);
 
@@ -140,7 +140,7 @@ const reviewerRouter = t.router({
 const stakeRouter = t.router({
   getMyStakes: protectedProcedure.input(z.object({ address: z.string() })).query(async ({ input, ctx }) => {
     const requestor = ctx.walletAddress!;
-    const isAdmin = ctx.role === 'admin' || ctx.role === 'internal';
+    const isAdmin = ctx.role === 'admin' || ctx.role === 'internal_service';
     if (!isAdmin && requestor !== input.address.toLowerCase()) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'cannot_access_other_user_stakes' });
     }

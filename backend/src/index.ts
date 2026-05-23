@@ -54,7 +54,6 @@ const app = createApp({
   onInstallationRepositoriesRemoved: handleInstallationRepositoriesRemoved,
   onActivatePendingStake: activatePendingStake,
   onConfirmStake: confirmStakeOnchainAndActivate,
-  internalApiToken: env.INTERNAL_API_TOKEN,
   listPromptStakeJobs,
 });
 

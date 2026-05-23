@@ -28,15 +28,17 @@ type Dependencies = {
 };
 
 const defaultDeps: Dependencies = {
-  findPendingStakeByStakeId: async (stakeId: string) =>
-    db.query.stakes.findFirst({
+  findPendingStakeByStakeId: async (stakeId: string) => {
+    const row = await db.query.stakes.findFirst({
       where: and(eq(stakes.stakeId, stakeId), eq(stakes.state, 'pending_stake')),
       columns: {
         id: true,
         amountUsdc: true,
         stakedAt: true,
       },
-    }),
+    });
+    return row ?? null;
+  },
   activateStake: async ({ stakeId, txHashStake, attestationUid, amountUsdc, windowEndsAt }) => {
     await db
       .update(stakes)

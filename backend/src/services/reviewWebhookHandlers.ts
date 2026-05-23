@@ -30,11 +30,13 @@ type Dependencies = {
 };
 
 const defaultDeps: Dependencies = {
-  findEnabledRepoBySlug: async (slug: string) =>
-    db.query.repos.findFirst({
+  findEnabledRepoBySlug: async (slug: string) => {
+    const row = await db.query.repos.findFirst({
       where: and(eq(repos.slug, slug), eq(repos.stakeEnabled, true)),
       columns: { id: true, minStakeUsdc: true },
-    }),
+    });
+    return row ?? null;
+  },
   upsertReviewerByGithubLogin: async (githubLogin: string) => {
     const placeholderAddress = `github:${githubLogin}`;
     await db
