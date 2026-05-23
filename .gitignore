@@ -8,3 +8,4 @@ backend/.env
 backend/TODO.md
 *.pem
 backend/*.private-key.pem
+FRONTEND.md
