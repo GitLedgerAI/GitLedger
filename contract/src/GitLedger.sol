@@ -31,6 +31,18 @@ contract GitLedger {
         StakeState state;
     }
 
+    struct AttestationPayload {
+        bytes32 basename;
+        string repoSlug;
+        uint256 prId;
+        uint256 stakeAmount;
+        string verdict;
+        uint256 reviewedAt;
+        uint256 resolvedAt;
+        int256 reputationDelta;
+        string repoLanguages;
+    }
+
     mapping(bytes32 => StakeRecord) public stakes;
     mapping(bytes32 => uint256) public reputation;
 
@@ -41,8 +53,15 @@ contract GitLedger {
     error OnlyOracle();
     error InvalidStakeState();
     error OracleWindowNotFinished();
+    error InvalidAmount();
+    error InvalidAddress();
+    error TokenTransferFailed();
 
     constructor(address eas_, address usdc_, bytes32 schema_, address oracle_, address treasury_) {
+        if (eas_ == address(0) || usdc_ == address(0) || oracle_ == address(0) || treasury_ == address(0)) {
+            revert InvalidAddress();
+        }
+
         eas = IEAS(eas_);
         usdc = IERC20(usdc_);
         schema = schema_;
@@ -54,9 +73,12 @@ contract GitLedger {
         external
         returns (bytes32 stakeId)
     {
-        usdc.transferFrom(msg.sender, address(this), amount);
+        if (amount == 0) revert InvalidAmount();
 
-        stakeId = keccak256(abi.encodePacked(msg.sender, prId));
+        bool ok = usdc.transferFrom(msg.sender, address(this), amount);
+        if (!ok) revert TokenTransferFailed();
+
+        stakeId = keccak256(abi.encode(msg.sender, repoSlug, prId));
         stakes[stakeId] = StakeRecord({
             reviewer: msg.sender,
             basename: basename,
@@ -68,26 +90,55 @@ contract GitLedger {
             state: StakeState.Active
         });
 
-        bytes32 uid = eas.attest(_buildAttestationPayload(basename, repoSlug, prId, amount, "ACTIVE"));
+        AttestationPayload memory payload = AttestationPayload({
+            basename: basename,
+            repoSlug: repoSlug,
+            prId: prId,
+            stakeAmount: amount,
+            verdict: "ACTIVE",
+            reviewedAt: block.timestamp,
+            resolvedAt: 0,
+            reputationDelta: 0,
+            repoLanguages: ""
+        });
+
+        bytes32 uid = eas.attest(_buildAttestationPayload(payload));
         stakes[stakeId].attestationUID = uid;
 
         emit StakeLocked(stakeId, msg.sender, amount);
     }
 
     function slashReview(bytes32 stakeId, address reporter) external onlyOracle {
+        if (reporter == address(0)) revert InvalidAddress();
+
         StakeRecord storage s = stakes[stakeId];
         if (s.state != StakeState.Active) revert InvalidStakeState();
 
         s.state = StakeState.Slashed;
         uint256 reporterAmount = (s.amount * REPORTER_SHARE) / 10_000;
-        usdc.transfer(reporter, reporterAmount);
-        usdc.transfer(treasury, s.amount - reporterAmount);
+
+        bool repPaid = usdc.transfer(reporter, reporterAmount);
+        bool treasuryPaid = usdc.transfer(treasury, s.amount - reporterAmount);
+        if (!repPaid || !treasuryPaid) revert TokenTransferFailed();
 
         uint256 current = reputation[s.basename];
         reputation[s.basename] = current >= 50 ? current - 50 : 0;
 
         eas.revoke(s.attestationUID);
-        eas.attest(_buildAttestationPayload(s.basename, s.repoSlug, s.prId, s.amount, "SLASHED"));
+
+        AttestationPayload memory payload = AttestationPayload({
+            basename: s.basename,
+            repoSlug: s.repoSlug,
+            prId: s.prId,
+            stakeAmount: s.amount,
+            verdict: "SLASHED",
+            reviewedAt: s.stakedAt,
+            resolvedAt: block.timestamp,
+            reputationDelta: -50,
+            repoLanguages: ""
+        });
+
+        eas.attest(_buildAttestationPayload(payload));
 
         emit ReviewSlashed(stakeId, reporter, reporterAmount);
     }
@@ -100,13 +151,27 @@ contract GitLedger {
         s.state = StakeState.Released;
 
         uint256 yld = computeYield(stakeId);
-        usdc.transfer(s.reviewer, s.amount + yld);
+        bool paid = usdc.transfer(s.reviewer, s.amount + yld);
+        if (!paid) revert TokenTransferFailed();
 
         uint256 nextScore = reputation[s.basename] + 5;
         reputation[s.basename] = _min(nextScore, 1000);
 
         eas.revoke(s.attestationUID);
-        eas.attest(_buildAttestationPayload(s.basename, s.repoSlug, s.prId, s.amount, "CLEAN"));
+
+        AttestationPayload memory payload = AttestationPayload({
+            basename: s.basename,
+            repoSlug: s.repoSlug,
+            prId: s.prId,
+            stakeAmount: s.amount,
+            verdict: "CLEAN",
+            reviewedAt: s.stakedAt,
+            resolvedAt: block.timestamp,
+            reputationDelta: 5,
+            repoLanguages: ""
+        });
+
+        eas.attest(_buildAttestationPayload(payload));
 
         emit YieldReleased(stakeId, s.reviewer, s.amount + yld);
     }
@@ -128,14 +193,20 @@ contract GitLedger {
         return a < b ? a : b;
     }
 
-    function _buildAttestationPayload(
-        bytes32 basename,
-        string memory repoSlug,
-        uint256 prId,
-        uint256 amount,
-        string memory verdict
-    ) internal view returns (bytes memory) {
-        // Minimal placeholder payload. Replace with schema-encoded EAS payload in integration phase.
-        return abi.encode(schema, basename, repoSlug, prId, amount, verdict, block.timestamp);
+    function _buildAttestationPayload(AttestationPayload memory payload) internal view returns (bytes memory) {
+        // Schema-aligned encoding:
+        // basename, repoSlug, prId, stakeAmount, verdict, reviewedAt, resolvedAt, reputationDelta, repoLanguages
+        return abi.encode(
+            schema,
+            payload.basename,
+            payload.repoSlug,
+            payload.prId,
+            payload.stakeAmount,
+            payload.verdict,
+            payload.reviewedAt,
+            payload.resolvedAt,
+            payload.reputationDelta,
+            payload.repoLanguages
+        );
     }
 }
