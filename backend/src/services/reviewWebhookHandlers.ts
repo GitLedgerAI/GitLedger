@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client';
-import { repos, stakes } from '../db/schema';
+import { repos, reviewers, stakes } from '../db/schema';
 import { enqueuePromptStake } from './queue';
 
 export type ApprovedReviewInput = {
@@ -17,6 +17,7 @@ type RepoRecord = {
 
 type Dependencies = {
   findEnabledRepoBySlug: (slug: string) => Promise<RepoRecord | null>;
+  upsertReviewerByGithubLogin: (githubLogin: string) => Promise<void>;
   insertPendingStake: (params: {
     stakeId: string;
     reviewerAddr: string;
@@ -34,6 +35,23 @@ const defaultDeps: Dependencies = {
       where: and(eq(repos.slug, slug), eq(repos.stakeEnabled, true)),
       columns: { id: true, minStakeUsdc: true },
     }),
+  upsertReviewerByGithubLogin: async (githubLogin: string) => {
+    const placeholderAddress = `github:${githubLogin}`;
+    await db
+      .insert(reviewers)
+      .values({
+        address: placeholderAddress,
+        githubLogin,
+        lastActiveAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: reviewers.address,
+        set: {
+          githubLogin,
+          lastActiveAt: new Date(),
+        },
+      });
+  },
   insertPendingStake: async ({ stakeId, reviewerAddr, repoId, prId, prTitle, amountUsdc }) => {
     await db
       .insert(stakes)
@@ -67,6 +85,8 @@ export async function handleApprovedReviewSubmitted(
   const minStakeUsdc = repo.minStakeUsdc ?? 10_000_000;
   const reviewerAddr = `github:${input.reviewerLogin}`;
   const stakeId = `pending:${input.repoSlug}:${input.prId}:${input.reviewerLogin}`;
+
+  await deps.upsertReviewerByGithubLogin(input.reviewerLogin);
 
   await deps.insertPendingStake({
     stakeId,

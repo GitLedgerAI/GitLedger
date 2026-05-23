@@ -7,6 +7,7 @@ describe('handleApprovedReviewSubmitted', () => {
       { reviewerLogin: 'alice', repoSlug: 'org/repo', prId: 42 },
       {
         findEnabledRepoBySlug: async () => null,
+        upsertReviewerByGithubLogin: async () => {},
         insertPendingStake: async () => {},
         enqueuePromptStake: async () => {},
       },
@@ -15,7 +16,8 @@ describe('handleApprovedReviewSubmitted', () => {
     expect(result).toEqual({ queued: false, reason: 'repo_not_enabled' });
   });
 
-  test('creates pending stake and enqueues prompt for enabled repo', async () => {
+  test('creates pending stake, upserts reviewer, and enqueues prompt for enabled repo', async () => {
+    let upsertedLogin: string | null = null;
     let inserted: Record<string, unknown> | null = null;
     let enqueued: Record<string, unknown> | null = null;
 
@@ -23,6 +25,9 @@ describe('handleApprovedReviewSubmitted', () => {
       { reviewerLogin: 'bob', repoSlug: 'gitledger/repo', prId: 77, prTitle: 'Fix parser' },
       {
         findEnabledRepoBySlug: async () => ({ id: 'repo-1', minStakeUsdc: 12_000_000 }),
+        upsertReviewerByGithubLogin: async (login) => {
+          upsertedLogin = login;
+        },
         insertPendingStake: async (params) => {
           inserted = params as unknown as Record<string, unknown>;
         },
@@ -33,6 +38,7 @@ describe('handleApprovedReviewSubmitted', () => {
     );
 
     expect(result).toEqual({ queued: true });
+    expect(upsertedLogin).toBe('bob');
     expect(inserted).toEqual({
       stakeId: 'pending:gitledger/repo:77:bob',
       reviewerAddr: 'github:bob',
