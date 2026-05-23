@@ -144,7 +144,27 @@ const stakeRouter = t.router({
     if (!isAdmin && requestor !== input.address.toLowerCase()) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'cannot_access_other_user_stakes' });
     }
-    return db.select().from(stakes).where(eq(stakes.reviewerAddr, input.address.toLowerCase())).orderBy(desc(stakes.stakedAt));
+    const rows = await db
+      .select({
+        id: stakes.id,
+        stakeId: stakes.stakeId,
+        reviewerAddr: stakes.reviewerAddr,
+        repoSlug: repos.slug,
+        prId: stakes.prId,
+        prTitle: stakes.prTitle,
+        amountUsdc: stakes.amountUsdc,
+        state: stakes.state,
+        attestationUid: stakes.attestationUid,
+        yieldEarned: stakes.yieldEarned,
+        windowEndsAt: stakes.windowEndsAt,
+        stakedAt: stakes.stakedAt,
+        resolvedAt: stakes.resolvedAt,
+      })
+      .from(stakes)
+      .leftJoin(repos, eq(stakes.repoId, repos.id))
+      .where(eq(stakes.reviewerAddr, input.address.toLowerCase()))
+      .orderBy(desc(stakes.stakedAt));
+    return rows;
   }),
 
   getPrDetails: publicProcedure.input(z.object({ repoSlug: z.string(), prId: z.number().int() })).query(async ({ input }) => {
@@ -188,7 +208,32 @@ const repoRouter = t.router({
   getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(async ({ input }) => {
     const row = await db.query.repos.findFirst({ where: eq(repos.slug, input.slug) });
     if (!row) throw new TRPCError({ code: 'NOT_FOUND' });
-    return row;
+
+    const atts = await db.select().from(attestations).where(eq(attestations.repoSlug, input.slug));
+    const totalReviews  = atts.length;
+    const slashCount    = atts.filter(a => a.verdict === 'SLASHED').length;
+    const totalStaked   = atts.reduce((sum, a) => sum + Number(a.stakeAmount ?? 0), 0);
+    const trustScore    = totalReviews > 0 ? Math.round(((totalReviews - slashCount) / totalReviews) * 100) : 100;
+    const slashRate     = totalReviews > 0 ? slashCount / totalReviews : 0;
+
+    const activeRows = await db
+      .select({ id: stakes.id })
+      .from(stakes)
+      .leftJoin(repos, eq(stakes.repoId, repos.id))
+      .where(and(eq(repos.slug, input.slug), eq(stakes.state, 'active')));
+
+    const parts = input.slug.split('/');
+    return {
+      ...row,
+      name:         parts[1] ?? input.slug,
+      owner:        parts[0] ?? '',
+      trustScore,
+      totalStaked,
+      totalReviews,
+      activeReviews: activeRows.length,
+      slashCount,
+      slashRate,
+    };
   }),
   getAttestations: publicProcedure
     .input(z.object({ slug: z.string(), verdict: VerdictSchema.optional() }))

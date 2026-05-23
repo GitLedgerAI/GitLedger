@@ -1,6 +1,10 @@
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { eq } from 'drizzle-orm';
 import { env } from './config/env';
+import { db } from './db/client';
+import { reviewers, stakes } from './db/schema';
 import { appRouter } from './routes/trpc';
 import { createTRPCContext } from './trpc/context';
 import {
@@ -66,6 +70,82 @@ function requireInternalAuth(authHeader: string | null | undefined): boolean {
 
 export function createApp(options: AppOptions) {
   const app = new Hono();
+
+  app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type', 'x-wallet-address', 'Authorization'] }));
+
+  // ── GitHub OAuth ────────────────────────────────────────────────────────────
+
+  app.get('/auth/github', (c) => {
+    const reqUrl = new URL(c.req.url);
+    const baseUrl = `${reqUrl.protocol}//${reqUrl.host}`;
+    const callback = c.req.query('callback') ?? '';
+    const wallet   = c.req.query('wallet') ?? '';
+    const state    = Buffer.from(JSON.stringify({ callback, wallet })).toString('base64url');
+    const redirectUri = encodeURIComponent(`${baseUrl}/auth/callback`);
+    const ghUrl = `https://github.com/login/oauth/authorize?client_id=${env.GITHUB_APP_CLIENT_ID}&redirect_uri=${redirectUri}&state=${state}&scope=read:user`;
+    return c.redirect(ghUrl);
+  });
+
+  app.get('/auth/callback', async (c) => {
+    const code     = c.req.query('code') ?? '';
+    const stateRaw = c.req.query('state') ?? '';
+
+    let callback = '';
+    let wallet   = '';
+    try {
+      const parsed = JSON.parse(Buffer.from(stateRaw, 'base64url').toString()) as { callback?: string; wallet?: string };
+      callback = parsed.callback ?? '';
+      wallet   = parsed.wallet   ?? '';
+    } catch { /* malformed state — proceed without callback/wallet */ }
+
+    // Exchange code → access token
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'GitLedgerAI' },
+      body: JSON.stringify({ client_id: env.GITHUB_APP_CLIENT_ID, client_secret: env.GITHUB_APP_CLIENT_SECRET, code }),
+    });
+    const tokenData = await tokenRes.json() as { access_token?: string; error?: string };
+    if (!tokenData.access_token) {
+      const err = encodeURIComponent(tokenData.error ?? 'oauth_failed');
+      return callback ? c.redirect(`${callback}?error=${err}`) : c.text('OAuth failed', 400);
+    }
+
+    // Get GitHub user
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}`, 'User-Agent': 'GitLedgerAI' },
+    });
+    const user = await userRes.json() as { login?: string };
+    const login = user.login ?? '';
+    if (!login) {
+      return callback ? c.redirect(`${callback}?error=no_github_login`) : c.text('No GitHub login', 400);
+    }
+
+    const placeholderAddr = `github:${login}`;
+    const realAddr = wallet ? wallet.toLowerCase() : placeholderAddr;
+
+    // Upsert reviewer; if wallet provided, migrate placeholder address → real wallet
+    const existing = await db.query.reviewers.findFirst({ where: eq(reviewers.githubLogin, login) });
+    if (wallet && existing && existing.address === placeholderAddr) {
+      await db.update(reviewers).set({ address: realAddr, lastActiveAt: new Date() }).where(eq(reviewers.address, placeholderAddr));
+      await db.update(stakes).set({ reviewerAddr: realAddr }).where(eq(stakes.reviewerAddr, placeholderAddr));
+    } else {
+      await db.insert(reviewers)
+        .values({ address: realAddr, githubLogin: login, lastActiveAt: new Date() })
+        .onConflictDoUpdate({ target: reviewers.address, set: { githubLogin: login, lastActiveAt: new Date() } });
+    }
+
+    const reviewer = await db.query.reviewers.findFirst({ where: eq(reviewers.githubLogin, login) });
+    const basename = reviewer?.basename ?? null;
+
+    if (!callback) return c.json({ ok: true, githubLogin: login, basename, wallet: realAddr });
+
+    const params = new URLSearchParams({ githubLogin: login });
+    if (basename) params.set('basename', basename);
+    if (wallet)   params.set('wallet', wallet);
+    return c.redirect(`${callback}?${params.toString()}`);
+  });
+
+  // ── tRPC ────────────────────────────────────────────────────────────────────
 
   app.all('/trpc/*', async (c) => {
     return fetchRequestHandler({
