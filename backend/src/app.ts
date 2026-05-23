@@ -1,4 +1,7 @@
+import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { Hono } from 'hono';
+import { appRouter } from './routes/trpc';
+import { createTRPCContext } from './trpc/context';
 import {
   isApprovedReviewSubmission,
   isInstallationCreated,
@@ -49,13 +52,22 @@ type AppOptions = {
     repoSlug: string;
     prId: number;
     amountUsdc: number;
-  }) => Promise<{ ok: boolean; reason?: string; txHash?: string; onchainStakeId?: string | null }>;
+  }) => Promise<{ ok: boolean; reason?: string; txHash?: string; onchainStakeId?: string | null; attestationUid?: string | null }>;
   internalApiToken?: string;
   listPromptStakeJobs?: (limit: number, status?: 'received' | 'processed' | 'failed') => Promise<unknown[]>;
 };
 
 export function createApp(options: AppOptions) {
   const app = new Hono();
+
+  app.all('/trpc/*', async (c) => {
+    return fetchRequestHandler({
+      endpoint: '/trpc',
+      req: c.req.raw,
+      router: appRouter,
+      createContext: () => createTRPCContext(c.req.raw),
+    });
+  });
 
   app.get('/health', async (c) => {
     if (!options.healthCheck) return c.json({ ok: true, service: 'gitledger-backend' });

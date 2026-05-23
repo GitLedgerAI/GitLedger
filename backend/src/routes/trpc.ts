@@ -1,45 +1,66 @@
 import { TRPCError, initTRPC } from '@trpc/server';
-import { and, desc, eq, ilike, or } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client';
-import { attestations, repos, reviewers, stakes } from '../db/schema';
+import { attestations, promptStakeJobs, repos, reviewers, stakes } from '../db/schema';
 import { confirmStakeOnchainAndActivate } from '../services/stakeConfirmation';
+import type { TRPCContext, UserRole } from '../trpc/context';
+import { reviewerExists } from '../trpc/context';
 
-const t = initTRPC.create();
+const t = initTRPC.context<TRPCContext>().create();
+
+const requireAuth = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.walletAddress) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'missing_wallet_address' });
+  }
+  const exists = await reviewerExists(ctx.walletAddress);
+  if (!exists) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'reviewer_not_found' });
+  }
+  return next({ ctx });
+});
+
+const requireRole = (roles: UserRole[]) =>
+  t.middleware(async ({ ctx, next }) => {
+    if (!roles.includes(ctx.role)) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'insufficient_role' });
+    }
+    return next({ ctx });
+  });
+
+const publicProcedure = t.procedure;
+const protectedProcedure = t.procedure.use(requireAuth);
+const adminProcedure = t.procedure.use(requireAuth).use(requireRole(['admin', 'internal']));
 
 const VerdictSchema = z.enum(['ALL', 'ACTIVE', 'CLEAN', 'SLASHED']);
 
 const reviewerRouter = t.router({
-  getByBasename: t.procedure
-    .input(z.object({ basename: z.string() }))
-    .query(async ({ input }) => {
-      const row = await db.query.reviewers.findFirst({ where: eq(reviewers.basename, input.basename) });
-      if (!row) return null;
-      return {
-        address: row.address,
-        basename: row.basename ?? '',
-        githubLogin: row.githubLogin ?? '',
-        reputationScore: row.reputationScore ?? 500,
-        totalStakedUsdc: Number(row.totalStakedUsdc ?? 0),
-        totalYieldUsdc: Number(row.totalYieldUsdc ?? 0),
-        totalSlashedUsdc: Number(row.totalSlashedUsdc ?? 0),
-        cleanCount: row.cleanCount ?? 0,
-        slashCount: row.slashCount ?? 0,
-        languages: row.languages ?? [],
-        lastActiveAt: row.lastActiveAt?.toISOString() ?? new Date().toISOString(),
-        createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
-      };
-    }),
+  getByBasename: publicProcedure.input(z.object({ basename: z.string() })).query(async ({ input }) => {
+    const row = await db.query.reviewers.findFirst({ where: eq(reviewers.basename, input.basename) });
+    if (!row) return null;
+    return {
+      address: row.address,
+      basename: row.basename ?? '',
+      githubLogin: row.githubLogin ?? '',
+      reputationScore: row.reputationScore ?? 500,
+      totalStakedUsdc: Number(row.totalStakedUsdc ?? 0),
+      totalYieldUsdc: Number(row.totalYieldUsdc ?? 0),
+      totalSlashedUsdc: Number(row.totalSlashedUsdc ?? 0),
+      cleanCount: row.cleanCount ?? 0,
+      slashCount: row.slashCount ?? 0,
+      languages: row.languages ?? [],
+      lastActiveAt: row.lastActiveAt?.toISOString() ?? new Date().toISOString(),
+      createdAt: row.createdAt?.toISOString() ?? new Date().toISOString(),
+    };
+  }),
 
-  getLeaderboard: t.procedure
+  getLeaderboard: publicProcedure
     .input(z.object({ sort: z.enum(['score', 'yield', 'accuracy', 'stakes']).optional(), lang: z.string().optional(), search: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const rows = await db.query.reviewers.findMany();
       let filtered = rows;
 
-      if (input?.lang) {
-        filtered = filtered.filter((r) => (r.languages ?? []).includes(input.lang!));
-      }
+      if (input?.lang) filtered = filtered.filter((r) => (r.languages ?? []).includes(input.lang!));
       if (input?.search) {
         const s = input.search.toLowerCase();
         filtered = filtered.filter((r) => (r.basename ?? '').toLowerCase().includes(s) || (r.githubLogin ?? '').toLowerCase().includes(s));
@@ -73,17 +94,15 @@ const reviewerRouter = t.router({
         if (sort === 'accuracy') return (b.accuracyRate ?? 0) - (a.accuracyRate ?? 0);
         return b.reputationScore - a.reputationScore;
       });
-
       return mapped;
     }),
 
-  getAttestations: t.procedure
+  getAttestations: publicProcedure
     .input(z.object({ basename: z.string(), verdict: VerdictSchema.optional() }))
     .query(async ({ input }) => {
       const where = input.verdict && input.verdict !== 'ALL'
         ? and(eq(attestations.basename, input.basename), eq(attestations.verdict, input.verdict))
         : eq(attestations.basename, input.basename);
-
       const rows = await db.select().from(attestations).where(where).orderBy(desc(attestations.reviewedAt));
       return rows.map((a) => ({
         uid: a.uid,
@@ -104,12 +123,16 @@ const reviewerRouter = t.router({
 });
 
 const stakeRouter = t.router({
-  getMyStakes: t.procedure.input(z.object({ address: z.string() })).query(async ({ input }) => {
-    const rows = await db.select().from(stakes).where(eq(stakes.reviewerAddr, input.address)).orderBy(desc(stakes.stakedAt));
-    return rows;
+  getMyStakes: protectedProcedure.input(z.object({ address: z.string() })).query(async ({ input, ctx }) => {
+    const requestor = ctx.walletAddress!;
+    const isAdmin = ctx.role === 'admin' || ctx.role === 'internal';
+    if (!isAdmin && requestor !== input.address.toLowerCase()) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'cannot_access_other_user_stakes' });
+    }
+    return db.select().from(stakes).where(eq(stakes.reviewerAddr, input.address.toLowerCase())).orderBy(desc(stakes.stakedAt));
   }),
 
-  getPrDetails: t.procedure.input(z.object({ repoSlug: z.string(), prId: z.number().int() })).query(async ({ input }) => {
+  getPrDetails: publicProcedure.input(z.object({ repoSlug: z.string(), prId: z.number().int() })).query(async ({ input }) => {
     const repo = await db.query.repos.findFirst({ where: eq(repos.slug, input.repoSlug) });
     const existing = await db.query.stakes.findFirst({ where: and(eq(stakes.prId, input.prId), eq(stakes.repoId, repo?.id ?? '')) });
     return {
@@ -121,9 +144,15 @@ const stakeRouter = t.router({
     };
   }),
 
-  submit: t.procedure
+  submit: protectedProcedure
     .input(z.object({ basename: z.string(), repoSlug: z.string(), prId: z.number().int().positive(), amountUsdc: z.number().int().positive(), stakeId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const reviewer = await db.query.reviewers.findFirst({ where: eq(reviewers.address, ctx.walletAddress!) });
+      if (!reviewer) throw new TRPCError({ code: 'UNAUTHORIZED' });
+      if (reviewer.basename && reviewer.basename !== input.basename) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'basename_mismatch' });
+      }
+
       const result = await confirmStakeOnchainAndActivate({
         stakeId: input.stakeId,
         reviewerBasename: input.basename,
@@ -135,31 +164,28 @@ const stakeRouter = t.router({
       if (!result.ok || !result.txHash || !result.attestationUid) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: result.reason ?? 'stake_submit_failed' });
       }
-
       return { txHash: result.txHash, attestationUid: result.attestationUid };
     }),
 });
 
 const repoRouter = t.router({
-  getBySlug: t.procedure.input(z.object({ slug: z.string() })).query(async ({ input }) => {
+  getBySlug: publicProcedure.input(z.object({ slug: z.string() })).query(async ({ input }) => {
     const row = await db.query.repos.findFirst({ where: eq(repos.slug, input.slug) });
     if (!row) throw new TRPCError({ code: 'NOT_FOUND' });
     return row;
   }),
-
-  getAttestations: t.procedure
+  getAttestations: publicProcedure
     .input(z.object({ slug: z.string(), verdict: VerdictSchema.optional() }))
     .query(async ({ input }) => {
       const where = input.verdict && input.verdict !== 'ALL'
         ? and(eq(attestations.repoSlug, input.slug), eq(attestations.verdict, input.verdict))
         : eq(attestations.repoSlug, input.slug);
-      const rows = await db.select().from(attestations).where(where).orderBy(desc(attestations.reviewedAt));
-      return rows;
+      return db.select().from(attestations).where(where).orderBy(desc(attestations.reviewedAt));
     }),
 });
 
 const feedRouter = t.router({
-  getLive: t.procedure.query(async () => {
+  getLive: publicProcedure.query(async () => {
     const rows = await db.select().from(attestations).orderBy(desc(attestations.reviewedAt)).limit(50);
     return rows.map((a) => ({
       basename: a.basename ?? '',
@@ -172,11 +198,25 @@ const feedRouter = t.router({
   }),
 });
 
+const adminRouter = t.router({
+  listPromptStakeJobs: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(25), status: z.enum(['received', 'processed', 'failed']).optional() }).optional())
+    .query(async ({ input }) => {
+      const lim = input?.limit ?? 25;
+      const where = input?.status ? eq(promptStakeJobs.status, input.status) : undefined;
+      if (where) {
+        return db.select().from(promptStakeJobs).where(where).orderBy(desc(promptStakeJobs.receivedAt)).limit(lim);
+      }
+      return db.select().from(promptStakeJobs).orderBy(desc(promptStakeJobs.receivedAt)).limit(lim);
+    }),
+});
+
 export const appRouter = t.router({
   reviewer: reviewerRouter,
   stake: stakeRouter,
   repo: repoRouter,
   feed: feedRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;
