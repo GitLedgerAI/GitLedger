@@ -19,3 +19,4 @@ Bun + Hono + tRPC + Drizzle scaffold for GitLedger.
 - Queueing is currently a stub in `src/services/queue.ts`.
 - tRPC routers are scaffolded in `src/routes/trpc.ts` for the PRD surface area.
 - CI trigger note: documentation touch-up for deployment pipeline validation.
+- CI trigger note 2: additional no-op docs update.
