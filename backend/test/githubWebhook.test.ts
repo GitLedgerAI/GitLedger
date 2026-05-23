@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
-import { isApprovedReviewSubmission, verifyGitHubSignature } from '../src/services/githubWebhook';
+import { isApprovedReviewSubmission, isInstallationCreated, verifyGitHubSignature } from '../src/services/githubWebhook';
 
 describe('githubWebhook utils', () => {
   test('verifyGitHubSignature validates valid signature', () => {
@@ -27,6 +27,22 @@ describe('githubWebhook utils', () => {
       isApprovedReviewSubmission('pull_request_review', {
         action: 'submitted',
         review: { state: 'commented' },
+      }),
+    ).toBe(false);
+  });
+
+  test('isInstallationCreated matches installation created event', () => {
+    expect(
+      isInstallationCreated('installation', {
+        action: 'created',
+        installation: { id: 123 },
+      }),
+    ).toBe(true);
+
+    expect(
+      isInstallationCreated('installation', {
+        action: 'deleted',
+        installation: { id: 123 },
       }),
     ).toBe(false);
   });

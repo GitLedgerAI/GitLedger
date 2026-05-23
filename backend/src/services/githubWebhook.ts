@@ -15,10 +15,19 @@ export type GitHubReviewEvent = {
   pull_request?: { number?: number };
 };
 
+export type GitHubInstallationEvent = {
+  action?: string;
+  installation?: { id?: number };
+};
+
 export function isApprovedReviewSubmission(eventName: string | null, payload: GitHubReviewEvent): boolean {
   return (
     eventName === 'pull_request_review' &&
     payload.action === 'submitted' &&
     payload.review?.state?.toLowerCase() === 'approved'
   );
+}
+
+export function isInstallationCreated(eventName: string | null, payload: GitHubInstallationEvent): boolean {
+  return eventName === 'installation' && payload.action === 'created' && typeof payload.installation?.id === 'number';
 }

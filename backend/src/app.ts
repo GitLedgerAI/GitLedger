@@ -1,6 +1,14 @@
 import { Hono } from 'hono';
 import { enqueuePromptStake } from './services/queue';
-import { isApprovedReviewSubmission, verifyGitHubSignature, type GitHubReviewEvent } from './services/githubWebhook';
+import {
+  isApprovedReviewSubmission,
+  isInstallationCreated,
+  verifyGitHubSignature,
+  type GitHubInstallationEvent,
+  type GitHubReviewEvent,
+} from './services/githubWebhook';
+import { handleInstallationCreated } from './services/githubWebhookHandlers';
+import type { HealthReport } from './services/health';
 
 type RedisLike = {
   get: (key: string) => Promise<string | null>;
@@ -11,13 +19,18 @@ type AppOptions = {
   githubWebhookSecret: string;
   redis: RedisLike;
   minStakeUsdc?: number;
+  healthCheck?: () => Promise<HealthReport>;
 };
 
 export function createApp(options: AppOptions) {
   const app = new Hono();
   const minStakeUsdc = options.minStakeUsdc ?? 10_000_000;
 
-  app.get('/health', (c) => c.json({ ok: true, service: 'gitledger-backend' }));
+  app.get('/health', async (c) => {
+    if (!options.healthCheck) return c.json({ ok: true, service: 'gitledger-backend' });
+    const report = await options.healthCheck();
+    return c.json(report, report.ok ? 200 : 503);
+  });
 
   app.post('/webhooks/github', async (c) => {
     const signature = c.req.header('x-hub-signature-256') ?? null;
@@ -34,14 +47,23 @@ export function createApp(options: AppOptions) {
     if (isDup) return c.text('dup', 200);
     await options.redis.set(dedupKey, '1', 30);
 
-    const payload = JSON.parse(rawBody) as GitHubReviewEvent;
-    if (isApprovedReviewSubmission(eventName, payload)) {
-      await enqueuePromptStake({
-        reviewerLogin: payload.review?.user?.login ?? '',
-        repoSlug: payload.repository?.full_name ?? '',
-        prId: payload.pull_request?.number ?? 0,
-        minStakeUsdc,
-      });
+    if (eventName === 'pull_request_review') {
+      const payload = JSON.parse(rawBody) as GitHubReviewEvent;
+      if (isApprovedReviewSubmission(eventName, payload)) {
+        await enqueuePromptStake({
+          reviewerLogin: payload.review?.user?.login ?? '',
+          repoSlug: payload.repository?.full_name ?? '',
+          prId: payload.pull_request?.number ?? 0,
+          minStakeUsdc,
+        });
+      }
+    }
+
+    if (eventName === 'installation') {
+      const payload = JSON.parse(rawBody) as GitHubInstallationEvent;
+      if (isInstallationCreated(eventName, payload)) {
+        await handleInstallationCreated(payload.installation!.id!);
+      }
     }
 
     return c.text('ok', 200);

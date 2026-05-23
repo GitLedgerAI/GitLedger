@@ -37,6 +37,29 @@ describe('createApp webhook flow', () => {
     resetEnqueuePromptStakeForTests();
   });
 
+  test('health endpoint returns injected health report', async () => {
+    const app = createApp({
+      githubWebhookSecret: secret,
+      redis: createRedisMock(),
+      healthCheck: async () => ({
+        ok: true,
+        service: 'gitledger-backend',
+        timestamp: new Date().toISOString(),
+        services: {
+          postgres: { status: 'up' },
+          redis: { status: 'up' },
+          github: { status: 'up' },
+          baseRpc: { status: 'up' },
+        },
+      }),
+    });
+
+    const res = await app.request('/health');
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { ok: boolean };
+    expect(json.ok).toBe(true);
+  });
+
   test('returns 401 for invalid signature', async () => {
     const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock() });
     const body = JSON.stringify({ action: 'submitted' });

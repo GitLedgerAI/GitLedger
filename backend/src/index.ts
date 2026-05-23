@@ -1,7 +1,9 @@
 import { createClient } from 'redis';
 import { env } from './config/env';
 import { createApp } from './app';
+import { pgPool } from './db/client';
 import { runMigrations } from './db/migrate';
+import { getHealthReport } from './services/health';
 
 await runMigrations();
 
@@ -11,12 +13,24 @@ redisClient.on('error', (err) => {
 });
 await redisClient.connect();
 
+const healthCheck = () =>
+  getHealthReport({
+    pgPool,
+    redisPing: () => redisClient.ping(),
+    githubToken: env.GITHUB_TOKEN,
+    baseRpcUrl: env.BASE_RPC_URL,
+  });
+
+const startupHealth = await healthCheck();
+console.info('[startup] service health', JSON.stringify(startupHealth));
+
 const app = createApp({
   githubWebhookSecret: env.GITHUB_WEBHOOK_SECRET,
   redis: {
     get: (key: string) => redisClient.get(key),
     set: (key: string, value: string, seconds: number) => redisClient.set(key, value, { EX: seconds }),
   },
+  healthCheck,
 });
 
 export default {
