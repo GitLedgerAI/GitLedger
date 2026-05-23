@@ -20,6 +20,13 @@ export type GitHubInstallationEvent = {
   installation?: { id?: number };
 };
 
+export type GitHubInstallationRepositoriesEvent = {
+  action?: string;
+  installation?: { id?: number };
+  repositories_added?: Array<{ id?: number; full_name?: string }>;
+  repositories_removed?: Array<{ id?: number; full_name?: string }>;
+};
+
 export function isApprovedReviewSubmission(eventName: string | null, payload: GitHubReviewEvent): boolean {
   return (
     eventName === 'pull_request_review' &&
@@ -30,4 +37,19 @@ export function isApprovedReviewSubmission(eventName: string | null, payload: Gi
 
 export function isInstallationCreated(eventName: string | null, payload: GitHubInstallationEvent): boolean {
   return eventName === 'installation' && payload.action === 'created' && typeof payload.installation?.id === 'number';
+}
+
+export function isInstallationDeleted(eventName: string | null, payload: GitHubInstallationEvent): boolean {
+  return eventName === 'installation' && payload.action === 'deleted' && typeof payload.installation?.id === 'number';
+}
+
+export function isInstallationRepositoriesEvent(
+  eventName: string | null,
+  payload: GitHubInstallationRepositoriesEvent,
+): boolean {
+  return (
+    eventName === 'installation_repositories' &&
+    (payload.action === 'added' || payload.action === 'removed') &&
+    typeof payload.installation?.id === 'number'
+  );
 }

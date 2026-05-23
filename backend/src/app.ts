@@ -3,7 +3,10 @@ import { enqueuePromptStake } from './services/queue';
 import {
   isApprovedReviewSubmission,
   isInstallationCreated,
+  isInstallationDeleted,
+  isInstallationRepositoriesEvent,
   type GitHubInstallationEvent,
+  type GitHubInstallationRepositoriesEvent,
   type GitHubReviewEvent,
   verifyGitHubSignature,
 } from './services/githubWebhook';
@@ -20,6 +23,15 @@ type AppOptions = {
   minStakeUsdc?: number;
   healthCheck?: () => Promise<HealthReport>;
   onInstallationCreated?: (installationId: number) => Promise<void>;
+  onInstallationDeleted?: (installationId: number) => Promise<void>;
+  onInstallationRepositoriesAdded?: (
+    installationId: number,
+    repositoriesAdded: Array<{ full_name?: string }>,
+  ) => Promise<void>;
+  onInstallationRepositoriesRemoved?: (
+    installationId: number,
+    repositoriesRemoved: Array<{ full_name?: string }>,
+  ) => Promise<void>;
 };
 
 export function createApp(options: AppOptions) {
@@ -63,6 +75,21 @@ export function createApp(options: AppOptions) {
       const payload = JSON.parse(rawBody) as GitHubInstallationEvent;
       if (isInstallationCreated(eventName, payload) && options.onInstallationCreated) {
         await options.onInstallationCreated(payload.installation!.id!);
+      }
+      if (isInstallationDeleted(eventName, payload) && options.onInstallationDeleted) {
+        await options.onInstallationDeleted(payload.installation!.id!);
+      }
+    }
+
+    if (eventName === 'installation_repositories') {
+      const payload = JSON.parse(rawBody) as GitHubInstallationRepositoriesEvent;
+      if (isInstallationRepositoriesEvent(eventName, payload)) {
+        if (payload.action === 'added' && options.onInstallationRepositoriesAdded) {
+          await options.onInstallationRepositoriesAdded(payload.installation!.id!, payload.repositories_added ?? []);
+        }
+        if (payload.action === 'removed' && options.onInstallationRepositoriesRemoved) {
+          await options.onInstallationRepositoriesRemoved(payload.installation!.id!, payload.repositories_removed ?? []);
+        }
       }
     }
 

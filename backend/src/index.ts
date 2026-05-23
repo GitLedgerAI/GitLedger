@@ -3,7 +3,12 @@ import { createApp } from './app';
 import { env } from './config/env';
 import { pgPool } from './db/client';
 import { runMigrations } from './db/migrate';
-import { handleInstallationCreated } from './services/githubWebhookHandlers';
+import {
+  handleInstallationCreated,
+  handleInstallationDeleted,
+  handleInstallationRepositoriesAdded,
+  handleInstallationRepositoriesRemoved,
+} from './services/githubWebhookHandlers';
 import { getHealthReport } from './services/health';
 
 await runMigrations();
@@ -33,6 +38,9 @@ const app = createApp({
   },
   healthCheck,
   onInstallationCreated: handleInstallationCreated,
+  onInstallationDeleted: handleInstallationDeleted,
+  onInstallationRepositoriesAdded: handleInstallationRepositoriesAdded,
+  onInstallationRepositoriesRemoved: handleInstallationRepositoriesRemoved,
 });
 
 export default {
