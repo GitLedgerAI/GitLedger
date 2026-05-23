@@ -2,8 +2,14 @@
   "name": "gitledger",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "backend"
+  ],
   "scripts": {
     "dev": "next dev",
+    "dev:frontend": "next dev",
+    "dev:backend": "cd backend && bun run dev",
+    "contract:test": "cd contract && forge test",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
