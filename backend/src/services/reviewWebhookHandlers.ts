@@ -31,11 +31,12 @@ type Dependencies = {
 
 const defaultDeps: Dependencies = {
   findEnabledRepoBySlug: async (slug: string) => {
-    const row = await db.query.repos.findFirst({
-      where: and(eq(repos.slug, slug), eq(repos.stakeEnabled, true)),
-      columns: { id: true, minStakeUsdc: true },
-    });
-    return row ?? null;
+    const rows = await db
+      .select({ id: repos.id, minStakeUsdc: repos.minStakeUsdc })
+      .from(repos)
+      .where(and(eq(repos.slug, slug), eq(repos.stakeEnabled, true)))
+      .limit(1);
+    return rows[0] ?? null;
   },
   upsertReviewerByGithubLogin: async (githubLogin: string) => {
     const placeholderAddress = `github:${githubLogin}`;
