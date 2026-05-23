@@ -37,6 +37,12 @@ type AppOptions = {
     installationId: number,
     repositoriesRemoved: Array<{ full_name?: string }>,
   ) => Promise<void>;
+  onActivatePendingStake?: (input: {
+    stakeId: string;
+    txHashStake: string;
+    attestationUid: string;
+    amountUsdc?: number;
+  }) => Promise<{ ok: boolean; reason?: string }>;
   internalApiToken?: string;
   listPromptStakeJobs?: (limit: number, status?: 'received' | 'processed' | 'failed') => Promise<unknown[]>;
 };
@@ -66,6 +72,33 @@ export function createApp(options: AppOptions) {
 
     const jobs = await options.listPromptStakeJobs(limit, status);
     return c.json({ ok: true, count: jobs.length, jobs });
+  });
+
+  app.post('/internal/stakes/activate', async (c) => {
+    if (!options.internalApiToken || !options.onActivatePendingStake) {
+      return c.json({ error: 'not_configured' }, 503);
+    }
+
+    const auth = c.req.header('authorization') ?? '';
+    const expected = `Bearer ${options.internalApiToken}`;
+    if (auth !== expected) return c.json({ error: 'unauthorized' }, 401);
+
+    const body = (await c.req.json()) as {
+      stakeId?: string;
+      txHashStake?: string;
+      attestationUid?: string;
+      amountUsdc?: number;
+    };
+
+    const result = await options.onActivatePendingStake({
+      stakeId: body.stakeId ?? '',
+      txHashStake: body.txHashStake ?? '',
+      attestationUid: body.attestationUid ?? '',
+      amountUsdc: body.amountUsdc,
+    });
+
+    if (!result.ok) return c.json(result, 400);
+    return c.json(result, 200);
   });
 
   app.post('/webhooks/github', async (c) => {

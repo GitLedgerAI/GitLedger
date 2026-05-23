@@ -13,6 +13,7 @@ import { getHealthReport } from './services/health';
 import { listPromptStakeJobs } from './services/internalJobs';
 import { configurePromptStakeQueue, setPromptStakePublisher } from './services/queue';
 import { handleApprovedReviewSubmitted } from './services/reviewWebhookHandlers';
+import { activatePendingStake } from './services/stakeResolution';
 
 await runMigrations();
 
@@ -50,6 +51,7 @@ const app = createApp({
   onInstallationDeleted: handleInstallationDeleted,
   onInstallationRepositoriesAdded: handleInstallationRepositoriesAdded,
   onInstallationRepositoriesRemoved: handleInstallationRepositoriesRemoved,
+  onActivatePendingStake: activatePendingStake,
   internalApiToken: env.INTERNAL_API_TOKEN,
   listPromptStakeJobs,
 });

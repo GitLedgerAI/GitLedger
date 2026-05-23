@@ -1,7 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
 import { createApp } from '../src/app';
-import { resetEnqueuePromptStakeForTests, setEnqueuePromptStakeForTests } from '../src/services/queue';
 
 type Store = Record<string, string>;
 
@@ -16,26 +15,18 @@ function createRedisMock() {
   };
 }
 
-function signedHeaders(body: string, secret: string, delivery = 'd1') {
+function signedHeaders(body: string, secret: string, delivery = 'd1', event = 'pull_request_review') {
   const sig = createHmac('sha256', secret).update(body).digest('hex');
   return {
     'content-type': 'application/json',
     'x-hub-signature-256': `sha256=${sig}`,
-    'x-github-event': 'pull_request_review',
+    'x-github-event': event,
     'x-github-delivery': delivery,
   };
 }
 
-describe('createApp webhook flow', () => {
+describe('createApp routes', () => {
   const secret = 'webhook_secret';
-
-  beforeEach(() => {
-    resetEnqueuePromptStakeForTests();
-  });
-
-  afterEach(() => {
-    resetEnqueuePromptStakeForTests();
-  });
 
   test('health endpoint returns injected health report', async () => {
     const app = createApp({
@@ -60,7 +51,46 @@ describe('createApp webhook flow', () => {
     expect(json.ok).toBe(true);
   });
 
-  test('returns 401 for invalid signature', async () => {
+  test('internal stake activation endpoint rejects missing auth', async () => {
+    const app = createApp({
+      githubWebhookSecret: secret,
+      redis: createRedisMock(),
+      internalApiToken: 'token-1',
+      onActivatePendingStake: async () => ({ ok: true }),
+    });
+
+    const res = await app.request('/internal/stakes/activate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ stakeId: 's1', txHashStake: '0x1', attestationUid: '0x2' }),
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  test('internal stake activation endpoint accepts valid auth', async () => {
+    const app = createApp({
+      githubWebhookSecret: secret,
+      redis: createRedisMock(),
+      internalApiToken: 'token-1',
+      onActivatePendingStake: async () => ({ ok: true }),
+    });
+
+    const res = await app.request('/internal/stakes/activate', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer token-1',
+      },
+      body: JSON.stringify({ stakeId: 's1', txHashStake: '0x1', attestationUid: '0x2' }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { ok: boolean };
+    expect(json.ok).toBe(true);
+  });
+
+  test('returns 401 for invalid webhook signature', async () => {
     const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock() });
     const body = JSON.stringify({ action: 'submitted' });
 
@@ -76,7 +106,7 @@ describe('createApp webhook flow', () => {
     expect(res.status).toBe(401);
   });
 
-  test('deduplicates by delivery id', async () => {
+  test('deduplicates webhook deliveries', async () => {
     const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock() });
     const body = JSON.stringify({
       action: 'submitted',
@@ -95,18 +125,22 @@ describe('createApp webhook flow', () => {
     expect(await second.text()).toBe('dup');
   });
 
-  test('queues stake prompt for approved review', async () => {
-    const jobs: Array<Record<string, unknown>> = [];
-    setEnqueuePromptStakeForTests(async (job) => {
-      jobs.push(job as unknown as Record<string, unknown>);
+  test('calls approved review handler when review is approved', async () => {
+    let called = false;
+
+    const app = createApp({
+      githubWebhookSecret: secret,
+      redis: createRedisMock(),
+      onApprovedReviewSubmitted: async () => {
+        called = true;
+      },
     });
 
-    const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock(), minStakeUsdc: 12_000_000 });
     const body = JSON.stringify({
       action: 'submitted',
       review: { state: 'approved', user: { login: 'bob' } },
       repository: { full_name: 'gitledger/repo' },
-      pull_request: { number: 77 },
+      pull_request: { number: 77, title: 'Fix parser' },
     });
 
     const res = await app.request('/webhooks/github', {
@@ -116,12 +150,6 @@ describe('createApp webhook flow', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(jobs.length).toBe(1);
-    expect(jobs[0]).toEqual({
-      reviewerLogin: 'bob',
-      repoSlug: 'gitledger/repo',
-      prId: 77,
-      minStakeUsdc: 12_000_000,
-    });
+    expect(called).toBe(true);
   });
 });
