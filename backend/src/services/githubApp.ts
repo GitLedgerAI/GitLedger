@@ -79,14 +79,22 @@ export async function getInstallationRepositories(installationId: number): Promi
 export async function isGitHubAppInstalledForUser(githubLogin: string): Promise<boolean> {
   const jwt = createGitHubAppJwt();
   const encodedLogin = encodeURIComponent(githubLogin);
-  const res = await fetch(`https://api.github.com/users/${encodedLogin}/installation`, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${jwt}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'GitLedgerAI',
-    },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  let res: Response;
+  try {
+    res = await fetch(`https://api.github.com/users/${encodedLogin}/installation`, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${jwt}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'GitLedgerAI',
+      },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (res.status === 404) return false;
   if (res.ok) return true;
