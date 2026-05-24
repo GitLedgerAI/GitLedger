@@ -64,7 +64,28 @@ export async function upsertReviewerFromOAuth(wallet: string, githubLogin: strin
   const now = new Date();
 
   await db.transaction(async (tx) => {
-    // If a placeholder reviewer exists from webhook ingestion, migrate it to wallet identity.
+    // Primary lookup by github_login to avoid unique-constraint collisions.
+    const byGithubLogin = await tx.query.reviewers.findFirst({
+      where: eq(reviewers.githubLogin, githubLogin),
+    });
+
+    if (byGithubLogin && byGithubLogin.address.toLowerCase() !== walletAddress) {
+      await tx
+        .update(stakes)
+        .set({ reviewerAddr: walletAddress })
+        .where(eq(stakes.reviewerAddr, byGithubLogin.address));
+
+      await tx
+        .update(reviewers)
+        .set({
+          address: walletAddress,
+          lastActiveAt: now,
+        })
+        .where(eq(reviewers.githubLogin, githubLogin));
+      return;
+    }
+
+    // Backward-compat fallback: migrate placeholder reviewer rows.
     const placeholder = await tx.query.reviewers.findFirst({
       where: and(eq(reviewers.address, placeholderAddress), eq(reviewers.githubLogin, githubLogin)),
     });
