@@ -83,3 +83,14 @@ export const promptStakeJobs = pgTable('prompt_stake_jobs', {
   receivedAt: timestamp('received_at').notNull().defaultNow(),
   processedAt: timestamp('processed_at'),
 });
+
+export const promptStakeNotifications = pgTable('prompt_stake_notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  reviewerLogin: text('reviewer_login').notNull(),
+  repoSlug: text('repo_slug').notNull(),
+  prId: integer('pr_id').notNull(),
+  minStakeUsdc: integer('min_stake_usdc').notNull(),
+  source: text('source').notNull().default('webhook'),
+  payload: jsonb('payload').notNull(),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+});

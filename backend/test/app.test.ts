@@ -107,6 +107,81 @@ describe('createApp routes', () => {
     expect(res.status).toBe(401);
   });
 
+  test('prompt-stake webhook rejects missing auth token config', async () => {
+    const original = process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
+    delete process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
+    const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock() });
+
+    const res = await app.request('/webhooks/prompt-stake', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'prompt_stake',
+        reviewerLogin: 'alice',
+        repoSlug: 'org/repo',
+        prId: 12,
+        minStakeUsdc: 10000000,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+
+    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = original;
+    expect(res.status).toBe(503);
+  });
+
+  test('prompt-stake webhook rejects invalid auth', async () => {
+    const original = process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
+    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = 'token-abc';
+    const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock() });
+
+    const res = await app.request('/webhooks/prompt-stake', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer wrong' },
+      body: JSON.stringify({
+        type: 'prompt_stake',
+        reviewerLogin: 'alice',
+        repoSlug: 'org/repo',
+        prId: 12,
+        minStakeUsdc: 10000000,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+
+    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = original;
+    expect(res.status).toBe(401);
+  });
+
+  test('prompt-stake webhook accepts valid payload + auth', async () => {
+    const original = process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
+    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = 'token-abc';
+    let saved = false;
+
+    const app = createApp({
+      githubWebhookSecret: secret,
+      redis: createRedisMock(),
+      onPromptStakeNotification: async () => {
+        saved = true;
+      },
+    });
+
+    const res = await app.request('/webhooks/prompt-stake', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer token-abc' },
+      body: JSON.stringify({
+        type: 'prompt_stake',
+        reviewerLogin: 'alice',
+        repoSlug: 'org/repo',
+        prId: 12,
+        minStakeUsdc: 10000000,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+
+    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = original;
+    expect(res.status).toBe(200);
+    expect(saved).toBe(true);
+  });
+
   test('deduplicates webhook deliveries', async () => {
     const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock() });
     const body = JSON.stringify({

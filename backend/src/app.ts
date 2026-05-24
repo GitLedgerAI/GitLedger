@@ -1,6 +1,7 @@
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { z } from 'zod';
 import { env } from './config/env';
 import { appRouter } from './routes/trpc';
 import { createTRPCContext } from './trpc/context';
@@ -57,6 +58,13 @@ type AppOptions = {
     amountUsdc: number;
   }) => Promise<{ ok: boolean; reason?: string; txHash?: string; onchainStakeId?: string | null; attestationUid?: string | null }>;
   listPromptStakeJobs?: (limit: number, status?: 'received' | 'processed' | 'failed') => Promise<unknown[]>;
+  onPromptStakeNotification?: (input: {
+    reviewerLogin: string;
+    repoSlug: string;
+    prId: number;
+    minStakeUsdc: number;
+    payload: unknown;
+  }) => Promise<void>;
 };
 
 function requireInternalAuth(authHeader: string | null | undefined): boolean {
@@ -65,6 +73,15 @@ function requireInternalAuth(authHeader: string | null | undefined): boolean {
   const token = authHeader.slice(7).trim();
   return token === env.INTERNAL_SERVICE_TOKEN || token === env.ADMIN_API_TOKEN || token === env.INTERNAL_API_TOKEN;
 }
+
+const promptStakeNotificationSchema = z.object({
+  type: z.literal('prompt_stake'),
+  reviewerLogin: z.string().min(1),
+  repoSlug: z.string().min(1),
+  prId: z.number().int().positive(),
+  minStakeUsdc: z.number().int().positive(),
+  timestamp: z.string().min(1),
+});
 
 export function createApp(options: AppOptions) {
   const app = new Hono();
@@ -220,6 +237,37 @@ export function createApp(options: AppOptions) {
     }
 
     return c.text('ok', 200);
+  });
+
+  app.post('/webhooks/prompt-stake', async (c) => {
+    if (!env.NOTIFIER_WEBHOOK_AUTH_TOKEN) return c.json({ error: 'not_configured' }, 503);
+    const auth = c.req.header('authorization') ?? '';
+    const expected = `Bearer ${env.NOTIFIER_WEBHOOK_AUTH_TOKEN}`;
+    if (auth !== expected) return c.json({ error: 'unauthorized' }, 401);
+
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'invalid_json' }, 400);
+    }
+
+    const parsed = promptStakeNotificationSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: 'invalid_payload', details: parsed.error.issues }, 400);
+    }
+
+    if (options.onPromptStakeNotification) {
+      await options.onPromptStakeNotification({
+        reviewerLogin: parsed.data.reviewerLogin,
+        repoSlug: parsed.data.repoSlug,
+        prId: parsed.data.prId,
+        minStakeUsdc: parsed.data.minStakeUsdc,
+        payload: body,
+      });
+    }
+
+    return c.json({ ok: true }, 200);
   });
 
   return app;

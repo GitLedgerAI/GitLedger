@@ -11,6 +11,7 @@ import {
 } from './services/githubWebhookHandlers';
 import { getHealthReport } from './services/health';
 import { listPromptStakeJobs } from './services/internalJobs';
+import { recordPromptStakeNotification } from './services/promptStakeNotifications';
 import { configurePromptStakeQueue, setPromptStakePublisher } from './services/queue';
 import { handleApprovedReviewSubmitted } from './services/reviewWebhookHandlers';
 import { activatePendingStake } from './services/stakeResolution';
@@ -55,6 +56,16 @@ const app = createApp({
   onActivatePendingStake: activatePendingStake,
   onConfirmStake: confirmStakeOnchainAndActivate,
   listPromptStakeJobs,
+  onPromptStakeNotification: async (input) => {
+    await recordPromptStakeNotification({
+      reviewerLogin: input.reviewerLogin,
+      repoSlug: input.repoSlug,
+      prId: input.prId,
+      minStakeUsdc: input.minStakeUsdc,
+      source: 'webhook',
+      payload: input.payload,
+    });
+  },
 });
 
 export default {
