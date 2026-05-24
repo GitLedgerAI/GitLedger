@@ -123,7 +123,6 @@ Jobs:
 
 - Backend: deployed and healthy
 - Contract: deployed on Base Mainnet
-- Frontend integration: ready to consume updated `FRONTEND.md`
 
 ## License
 
