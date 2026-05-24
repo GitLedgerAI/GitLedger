@@ -203,24 +203,34 @@ export function createApp(options: AppOptions) {
     const deliveryId = c.req.header('x-github-delivery') ?? 'unknown';
 
     const rawBody = await c.req.text();
+    console.log('[github-webhook] received', { deliveryId, eventName });
     if (!verifyGitHubSignature(signature, rawBody, options.githubWebhookSecret)) {
+      console.warn('[github-webhook] invalid signature', { deliveryId, eventName });
       return c.text('unauthorized', 401);
     }
 
     const dedupKey = `gh:${deliveryId}`;
     const isDup = await options.redis.get(dedupKey);
-    if (isDup) return c.text('dup', 200);
+    if (isDup) {
+      console.log('[github-webhook] duplicate delivery ignored', { deliveryId, eventName });
+      return c.text('dup', 200);
+    }
     await options.redis.set(dedupKey, '1', 30);
 
     if (eventName === 'pull_request_review') {
       const payload = JSON.parse(rawBody) as GitHubReviewEvent;
       if (isApprovedReviewSubmission(eventName, payload) && options.onApprovedReviewSubmitted) {
+        const reviewerLogin = payload.review?.user?.login ?? '';
+        const repoSlug = payload.repository?.full_name ?? '';
+        const prId = payload.pull_request?.number ?? 0;
+        console.log('[github-webhook] approved review detected', { deliveryId, reviewerLogin, repoSlug, prId });
         await options.onApprovedReviewSubmitted({
-          reviewerLogin: payload.review?.user?.login ?? '',
-          repoSlug: payload.repository?.full_name ?? '',
-          prId: payload.pull_request?.number ?? 0,
+          reviewerLogin,
+          repoSlug,
+          prId,
           prTitle: payload.pull_request?.title,
         });
+        console.log('[github-webhook] approved review handled', { deliveryId, reviewerLogin, repoSlug, prId });
       }
     }
 
@@ -246,6 +256,7 @@ export function createApp(options: AppOptions) {
       }
     }
 
+    console.log('[github-webhook] processed', { deliveryId, eventName });
     return c.text('ok', 200);
   });
 

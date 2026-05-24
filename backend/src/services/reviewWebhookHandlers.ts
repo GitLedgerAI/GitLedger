@@ -83,6 +83,11 @@ export async function handleApprovedReviewSubmitted(
 
   const repo = await deps.findEnabledRepoBySlug(input.repoSlug);
   if (!repo) {
+    console.log('[github-webhook] approved-review skipped (repo not enabled)', {
+      reviewerLogin: input.reviewerLogin,
+      repoSlug: input.repoSlug,
+      prId: input.prId,
+    });
     return { queued: false, reason: 'repo_not_enabled' };
   }
 
@@ -101,7 +106,24 @@ export async function handleApprovedReviewSubmitted(
     amountUsdc: minStakeUsdc,
   });
 
+  console.log('[github-webhook] approved-review pending stake inserted', {
+    stakeId,
+    reviewerLogin: input.reviewerLogin,
+    reviewerAddr,
+    repoSlug: input.repoSlug,
+    prId: input.prId,
+    minStakeUsdc,
+  });
+
   await deps.enqueuePromptStake({
+    reviewerLogin: input.reviewerLogin,
+    repoSlug: input.repoSlug,
+    prId: input.prId,
+    minStakeUsdc,
+  });
+
+  console.log('[github-webhook] approved-review prompt-stake enqueued', {
+    stakeId,
     reviewerLogin: input.reviewerLogin,
     repoSlug: input.repoSlug,
     prId: input.prId,

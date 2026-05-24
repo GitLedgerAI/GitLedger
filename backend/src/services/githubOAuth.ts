@@ -1,7 +1,8 @@
 import { createHmac, randomBytes } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
 import { env } from '../config/env';
 import { db } from '../db/client';
-import { reviewers } from '../db/schema';
+import { reviewers, stakes } from '../db/schema';
 
 const API = 'https://github.com/login/oauth';
 
@@ -58,18 +59,38 @@ export async function fetchGithubLogin(token: string): Promise<string | null> {
 }
 
 export async function upsertReviewerFromOAuth(wallet: string, githubLogin: string): Promise<void> {
-  await db
-    .insert(reviewers)
-    .values({
-      address: wallet.toLowerCase(),
-      githubLogin,
-      lastActiveAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: reviewers.address,
-      set: {
-        githubLogin,
-        lastActiveAt: new Date(),
-      },
+  const walletAddress = wallet.toLowerCase();
+  const placeholderAddress = `github:${githubLogin}`;
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    // If a placeholder reviewer exists from webhook ingestion, migrate it to wallet identity.
+    const placeholder = await tx.query.reviewers.findFirst({
+      where: and(eq(reviewers.address, placeholderAddress), eq(reviewers.githubLogin, githubLogin)),
     });
+
+    if (placeholder) {
+      await tx
+        .update(stakes)
+        .set({ reviewerAddr: walletAddress })
+        .where(eq(stakes.reviewerAddr, placeholderAddress));
+
+      await tx.delete(reviewers).where(eq(reviewers.address, placeholderAddress));
+    }
+
+    await tx
+      .insert(reviewers)
+      .values({
+        address: walletAddress,
+        githubLogin,
+        lastActiveAt: now,
+      })
+      .onConflictDoUpdate({
+        target: reviewers.address,
+        set: {
+          githubLogin,
+          lastActiveAt: now,
+        },
+      });
+  });
 }
