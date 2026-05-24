@@ -13,6 +13,7 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const isLandingPage = pathname === '/';
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -46,7 +47,16 @@ export default function Navbar() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 animate-pulse" />
             <span className="text-[10px] font-mono tracking-[0.18em] text-white/35 uppercase">Base L2</span>
           </div>
-          <ConnectButton />
+          {isLandingPage ? (
+            <Link
+              href="/dashboard"
+              className="px-4 py-1.5 border border-white/15 text-[11px] font-mono tracking-[0.18em] text-white/70 uppercase hover:text-white hover:border-white/35 transition-all duration-200"
+            >
+              Launch App
+            </Link>
+          ) : (
+            <ConnectButton />
+          )}
           <button
             className="sm:hidden flex flex-col gap-1 p-1"
             onClick={() => setMenuOpen(!menuOpen)}

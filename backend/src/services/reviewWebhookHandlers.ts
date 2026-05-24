@@ -41,20 +41,24 @@ const defaultDeps: Dependencies = {
   },
   upsertReviewerByGithubLogin: async (githubLogin: string) => {
     const placeholderAddress = `github:${githubLogin}`;
-    await db
-      .insert(reviewers)
-      .values({
-        address: placeholderAddress,
-        githubLogin,
-        lastActiveAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: reviewers.address,
-        set: {
-          githubLogin,
-          lastActiveAt: new Date(),
-        },
-      });
+    const now = new Date();
+    const existing = await db.query.reviewers.findFirst({
+      where: eq(reviewers.githubLogin, githubLogin),
+    });
+
+    if (existing) {
+      await db
+        .update(reviewers)
+        .set({ lastActiveAt: now })
+        .where(eq(reviewers.githubLogin, githubLogin));
+      return;
+    }
+
+    await db.insert(reviewers).values({
+      address: placeholderAddress,
+      githubLogin,
+      lastActiveAt: now,
+    });
   },
   insertPendingStake: async ({ stakeId, reviewerAddr, repoId, prId, prTitle, amountUsdc }) => {
     await db

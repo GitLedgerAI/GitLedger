@@ -55,7 +55,7 @@ function getConnectorSub(name: string): string {
   return 'Browser extension';
 }
 
-const APP_SLUG = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG ?? 'gitledger';
+const APP_SLUG = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG ?? 'gitledgerai';
 
 export default function AuthModal() {
   const {
@@ -64,22 +64,19 @@ export default function AuthModal() {
     isWalletConnected,
     isGithubLinked,
     githubSession,
+    appInstallStatus,
+    appInstallCheckError,
+    refreshAppInstallStatus,
     connectGitHub,
-    confirmAppInstall,
     disconnectAll,
   } = useAuth();
   const { connect, connectors, isPending, variables } = useConnect();
-
-  const dismissInstall = () => {
-    confirmAppInstall();
-    closeModal();
-  };
 
   const step = !isGithubLinked
     ? 'github'
     : !isWalletConnected
     ? 'wallet'
-    : !githubSession?.appInstallConfirmed
+    : appInstallStatus !== 'installed'
     ? 'install'
     : 'done';
 
@@ -216,8 +213,23 @@ export default function AuthModal() {
                 </div>
               </div>
               <p className="text-[11px] font-mono text-white/35 leading-relaxed">
-                Install the GitLedger GitHub App on your repositories so we can detect PR approvals and trigger the stake flow automatically.
+                We check whether GitLedger GitHub App is installed for your account. If not installed, use the install link below.
               </p>
+              {appInstallStatus === 'checking' && (
+                <div className="px-4 py-3 border border-white/[0.06] bg-[#0a0a0b] text-[10px] font-mono text-white/40">
+                  Checking GitHub App installation status...
+                </div>
+              )}
+              {appInstallStatus === 'error' && (
+                <div className="px-4 py-3 border border-red-400/20 bg-red-400/[0.03] text-[10px] font-mono text-red-300/70">
+                  Failed to check install status. {appInstallCheckError ? `(${appInstallCheckError})` : ''}
+                </div>
+              )}
+              {appInstallStatus === 'not_installed' && (
+                <div className="px-4 py-3 border border-amber-400/20 bg-amber-400/[0.03] text-[10px] font-mono text-amber-300/70">
+                  GitLedger App not installed for this account yet.
+                </div>
+              )}
               <div className="px-4 py-3 border border-white/[0.06] bg-[#0a0a0b] flex flex-col gap-2">
                 {[
                   'Receives webhooks on PR review events only',
@@ -230,20 +242,21 @@ export default function AuthModal() {
                   </div>
                 ))}
               </div>
-              <a
-                href={`https://github.com/apps/${APP_SLUG}/installations/new`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={dismissInstall}
-                className="w-full py-3 bg-white/90 text-[#0a0a0b] text-[11px] font-mono tracking-[0.18em] font-bold uppercase hover:bg-white transition-all duration-200 flex items-center justify-center gap-2"
-              >
-                Install GitLedger App ↗
-              </a>
+              {(appInstallStatus === 'not_installed' || appInstallStatus === 'error') && (
+                <a
+                  href={`https://github.com/apps/${APP_SLUG}/installations/new`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 bg-white/90 text-[#0a0a0b] text-[11px] font-mono tracking-[0.18em] font-bold uppercase hover:bg-white transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  Install GitLedger App ↗
+                </a>
+              )}
               <button
-                onClick={dismissInstall}
+                onClick={() => void refreshAppInstallStatus()}
                 className="text-[10px] font-mono text-white/20 hover:text-white/45 transition-colors text-center"
               >
-                I&apos;ve already installed it
+                I&apos;ve installed it, re-check
               </button>
             </div>
           )}
