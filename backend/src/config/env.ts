@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+function normalizePrivateKey(input: string): `0x${string}` {
+  const trimmed = input.trim();
+  const noPrefix = trimmed.startsWith('0x') ? trimmed.slice(2) : trimmed;
+  if (!/^[0-9a-fA-F]{64}$/.test(noPrefix)) {
+    throw new Error('SIGNER_PRIVATE_KEY must be 32-byte hex (64 hex chars), with optional 0x prefix');
+  }
+  return `0x${noPrefix.toLowerCase()}`;
+}
+
 const envSchema = z.object({
   PORT: z.coerce.number().default(8787),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -13,7 +22,7 @@ const envSchema = z.object({
   ADMIN_API_TOKEN: z.string().min(1).default('dev_admin_token'),
   INTERNAL_SERVICE_TOKEN: z.string().min(1).default('dev_internal_service_token'),
   BASE_RPC_URL: z.string().url(),
-  SIGNER_PRIVATE_KEY: z.string().min(1),
+  SIGNER_PRIVATE_KEY: z.string().min(1).transform(normalizePrivateKey),
   GITLEDGER_CONTRACT: z.string().min(1),
   EAS_CONTRACT_BASE: z.string().min(1),
   EAS_SCHEMA_UID: z.string().min(1),

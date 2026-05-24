@@ -11,3 +11,5 @@ backend/*.private-key.pem
 FRONTEND.md
 
 FRONTEND.md
+
+misc/
