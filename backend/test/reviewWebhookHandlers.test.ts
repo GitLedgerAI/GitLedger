@@ -8,7 +8,7 @@ describe('handleApprovedReviewSubmitted', () => {
       { reviewerLogin: 'alice', repoSlug: 'org/repo', prId: 42 },
       {
         findEnabledRepoBySlug: async () => null,
-        upsertReviewerByGithubLogin: async () => {},
+        upsertReviewerByGithubLogin: async (login) => `github:${login}`,
         insertPendingStake: async () => {},
         enqueuePromptStake: async () => {},
       },
@@ -28,6 +28,7 @@ describe('handleApprovedReviewSubmitted', () => {
         findEnabledRepoBySlug: async () => ({ id: 'repo-1', minStakeUsdc: 12_000_000 }),
         upsertReviewerByGithubLogin: async (login) => {
           upsertedLogin = login;
+          return `github:${login}`;
         },
         insertPendingStake: async (params) => {
           inserted = params as unknown as Record<string, unknown>;

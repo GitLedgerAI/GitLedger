@@ -18,7 +18,7 @@ type RepoRecord = {
 
 type Dependencies = {
   findEnabledRepoBySlug: (slug: string) => Promise<RepoRecord | null>;
-  upsertReviewerByGithubLogin: (githubLogin: string) => Promise<void>;
+  upsertReviewerByGithubLogin: (githubLogin: string) => Promise<string>;
   insertPendingStake: (params: {
     stakeId: string;
     reviewerAddr: string;
@@ -51,7 +51,7 @@ const defaultDeps: Dependencies = {
         .update(reviewers)
         .set({ lastActiveAt: now })
         .where(eq(reviewers.githubLogin, githubLogin));
-      return;
+      return existing.address;
     }
 
     await db.insert(reviewers).values({
@@ -59,6 +59,7 @@ const defaultDeps: Dependencies = {
       githubLogin,
       lastActiveAt: now,
     });
+    return placeholderAddress;
   },
   insertPendingStake: async ({ stakeId, reviewerAddr, repoId, prId, prTitle, amountUsdc }) => {
     await db
@@ -96,10 +97,9 @@ export async function handleApprovedReviewSubmitted(
   }
 
   const minStakeUsdc = repo.minStakeUsdc ?? 500_000;
-  const reviewerAddr = `github:${input.reviewerLogin}`;
   const stakeId = deriveStakeId(input.repoSlug, input.prId, input.reviewerLogin);
 
-  await deps.upsertReviewerByGithubLogin(input.reviewerLogin);
+  const reviewerAddr = await deps.upsertReviewerByGithubLogin(input.reviewerLogin);
 
   await deps.insertPendingStake({
     stakeId,
