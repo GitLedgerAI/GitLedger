@@ -18,6 +18,7 @@ import {
   verifyGitHubSignature,
 } from './services/githubWebhook';
 import type { HealthReport } from './services/health';
+import { buildOAuthState, exchangeCodeForToken, fetchGithubLogin, parseAndVerifyState, upsertReviewerFromOAuth } from './services/githubOAuth';
 
 type RedisLike = {
   get: (key: string) => Promise<string | null>;
@@ -154,6 +155,42 @@ export function createApp(options: AppOptions) {
       router: appRouter,
       createContext: () => createTRPCContext(c.req.raw),
     });
+  });
+
+
+  app.get('/auth/github', async (c) => {
+    const wallet = c.req.query('wallet') ?? '';
+    const callback = c.req.query('callback') ?? '';
+    if (!wallet || !callback) return c.json({ error: 'missing_wallet_or_callback' }, 400);
+
+    const state = buildOAuthState(wallet, callback);
+    const params = new URLSearchParams({
+      client_id: env.GITHUB_OAUTH_CLIENT_ID,
+      redirect_uri: `${new URL(env.GITHUB_WEBHOOK_URL).origin}/auth/github/callback`,
+      scope: 'read:user',
+      state,
+    });
+    return c.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
+  });
+
+  app.get('/auth/github/callback', async (c) => {
+    const code = c.req.query('code') ?? '';
+    const state = c.req.query('state') ?? '';
+    const parsed = parseAndVerifyState(state);
+    if (!code || !parsed) return c.json({ error: 'invalid_oauth_callback' }, 400);
+
+    const token = await exchangeCodeForToken(code);
+    if (!token) return c.json({ error: 'oauth_token_exchange_failed' }, 400);
+
+    const githubLogin = await fetchGithubLogin(token);
+    if (!githubLogin) return c.json({ error: 'github_user_fetch_failed' }, 400);
+
+    await upsertReviewerFromOAuth(parsed.wallet, githubLogin);
+
+    const redirectUrl = new URL(parsed.callback);
+    redirectUrl.searchParams.set('wallet', parsed.wallet);
+    redirectUrl.searchParams.set('github_login', githubLogin);
+    return c.redirect(redirectUrl.toString());
   });
 
   app.get('/health', async (c) => {
