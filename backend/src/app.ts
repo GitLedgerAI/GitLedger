@@ -148,7 +148,7 @@ export function createApp(options: AppOptions) {
         ok: true,
         githubLogin,
         installed,
-        installUrl: 'https://github.com/apps/gitledger/installations/new',
+        installUrl: `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

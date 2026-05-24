@@ -32,6 +32,7 @@ const envSchema = z.object({
   GITHUB_OAUTH_CLIENT_SECRET: z.string().min(1).default('dev_github_oauth_client_secret'),
   SESSION_SECRET: z.string().min(1).default('dev_session_secret_change_me'),
   GITHUB_APP_ID: z.string().min(1),
+  GITHUB_APP_SLUG: z.string().min(1).default('gitledgerai'),
   GITHUB_APP_PRIVATE_KEY: z.string().min(1),
   GITHUB_WEBHOOK_SECRET: z.string().min(1),
   GITHUB_WEBHOOK_URL: z.string().url(),
