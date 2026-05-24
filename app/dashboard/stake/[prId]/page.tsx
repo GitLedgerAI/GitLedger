@@ -33,8 +33,8 @@ function StakeFlowInner({ prId }: { prId: number }) {
   const usdcAmount = parseFloat(amount) || 0;
   const multiplier = (reviewer?.reputationScore ?? 0) >= 700 ? 1.5 : 1;
   const estimatedYield = usdcAmount * 0.18 * (30 / 365) * multiplier;
-  const minStake = pr ? pr.minStakeUsdc / 1_000_000 : 3;
-  const effectiveMin = Math.max(minStake, 3);
+  const minStake = pr ? pr.minStakeUsdc / 1_000_000 : 1;
+  const effectiveMin = Math.max(minStake, 1);
 
   async function handleConfirmStake() {
     if (!isWalletConnected || !isFullyRegistered) { openModal(); return; }
@@ -266,7 +266,7 @@ function StakeFlowInner({ prId }: { prId: number }) {
                   {pr && !pr.stakeEnabled && (
                     <span className="text-[10px] font-mono text-red-400/60">Staking disabled for this repo</span>
                   )}
-                  {pr && pr.minStakeUsdc > 3_000_000 && (
+                  {pr && pr.minStakeUsdc > 1_000_000 && (
                     <span className="text-[10px] font-mono text-amber-400/60">
                       Min stake: {formatUsdc(pr.minStakeUsdc)}
                     </span>

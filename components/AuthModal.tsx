@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useConnect } from 'wagmi';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
 function WalletIcon({ name }: { name: string }) {
@@ -55,23 +55,42 @@ function getConnectorSub(name: string): string {
   return 'Browser extension';
 }
 
+const INSTALL_KEY = 'cl_app_installed';
+const APP_SLUG = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG ?? 'gitledger';
+
 export default function AuthModal() {
   const {
     isModalOpen,
     closeModal,
     isWalletConnected,
     isGithubLinked,
-    isFullyRegistered,
     connectGitHub,
     disconnectAll,
   } = useAuth();
   const { connect, connectors, isPending, variables } = useConnect();
 
-  const step = !isGithubLinked ? 'github' : !isWalletConnected ? 'wallet' : 'done';
+  const [appInstalled, setAppInstalled] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(INSTALL_KEY) === '1';
+  });
+
+  const dismissInstall = () => {
+    localStorage.setItem(INSTALL_KEY, '1');
+    setAppInstalled(true);
+    closeModal();
+  };
+
+  const step = !isGithubLinked
+    ? 'github'
+    : !isWalletConnected
+    ? 'wallet'
+    : !appInstalled
+    ? 'install'
+    : 'done';
 
   useEffect(() => {
-    if (isFullyRegistered) closeModal();
-  }, [isFullyRegistered, closeModal]);
+    if (step === 'done') closeModal();
+  }, [step, closeModal]);
 
   if (!isModalOpen) return null;
 
@@ -96,10 +115,10 @@ export default function AuthModal() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[10px] font-mono tracking-[0.25em] text-white/25 uppercase mb-1">
-                {step === 'github' ? 'Step 1 of 2' : step === 'wallet' ? 'Step 2 of 2' : 'Connected'}
+                {step === 'github' ? 'Step 1 of 3' : step === 'wallet' ? 'Step 2 of 3' : step === 'install' ? 'Step 3 of 3' : 'Connected'}
               </p>
               <h2 className="text-base font-bold text-white">
-                {step === 'github' ? 'Link GitHub Account' : step === 'wallet' ? 'Connect Wallet' : 'All set'}
+                {step === 'github' ? 'Link GitHub Account' : step === 'wallet' ? 'Connect Wallet' : step === 'install' ? 'Install GitHub App' : 'All set'}
               </h2>
             </div>
             <button
@@ -113,7 +132,8 @@ export default function AuthModal() {
           {/* Step progress */}
           <div className="flex gap-1.5">
             <div className={`flex-1 h-px transition-colors duration-300 ${step !== 'github' ? 'bg-emerald-400/60' : 'bg-white/20'}`} />
-            <div className={`flex-1 h-px transition-colors duration-300 ${step === 'done' ? 'bg-emerald-400/60' : step === 'wallet' ? 'bg-white/20' : 'bg-white/[0.06]'}`} />
+            <div className={`flex-1 h-px transition-colors duration-300 ${step === 'install' || step === 'done' ? 'bg-emerald-400/60' : step === 'wallet' ? 'bg-white/20' : 'bg-white/[0.06]'}`} />
+            <div className={`flex-1 h-px transition-colors duration-300 ${step === 'done' ? 'bg-emerald-400/60' : step === 'install' ? 'bg-white/20' : 'bg-white/[0.06]'}`} />
           </div>
 
           {/* ── Step 1: GitHub ── */}
@@ -187,6 +207,48 @@ export default function AuthModal() {
               <p className="text-[10px] font-mono text-white/18 text-center">ETH-compatible wallets only · Base L2</p>
               <button onClick={disconnectAll} className="text-[10px] font-mono text-white/20 hover:text-white/45 transition-colors text-center">
                 unlink GitHub
+              </button>
+            </div>
+          )}
+
+          {/* ── Step 3: Install GitHub App ── */}
+          {step === 'install' && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <div className="px-3 py-2 bg-emerald-400/[0.04] border border-emerald-400/15 flex items-center gap-2 flex-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70 shrink-0" />
+                  <span className="text-[10px] font-mono text-emerald-300/60">GitHub linked · Wallet connected</span>
+                </div>
+              </div>
+              <p className="text-[11px] font-mono text-white/35 leading-relaxed">
+                Install the GitLedger GitHub App on your repositories so we can detect PR approvals and trigger the stake flow automatically.
+              </p>
+              <div className="px-4 py-3 border border-white/[0.06] bg-[#0a0a0b] flex flex-col gap-2">
+                {[
+                  'Receives webhooks on PR review events only',
+                  'Never reads private code or secrets',
+                  'Can be uninstalled at any time from GitHub settings',
+                ].map(line => (
+                  <div key={line} className="flex items-start gap-2">
+                    <span className="text-emerald-400/50 text-[10px] mt-0.5 shrink-0">✓</span>
+                    <span className="text-[10px] font-mono text-white/30">{line}</span>
+                  </div>
+                ))}
+              </div>
+              <a
+                href={`https://github.com/apps/${APP_SLUG}/installations/new`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={dismissInstall}
+                className="w-full py-3 bg-white/90 text-[#0a0a0b] text-[11px] font-mono tracking-[0.18em] font-bold uppercase hover:bg-white transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                Install GitLedger App ↗
+              </a>
+              <button
+                onClick={dismissInstall}
+                className="text-[10px] font-mono text-white/20 hover:text-white/45 transition-colors text-center"
+              >
+                I&apos;ve already installed it
               </button>
             </div>
           )}
