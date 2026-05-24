@@ -29,6 +29,41 @@ async function trpcQuery<T>(
 const walletHeader = (addr: string | null | undefined): Record<string, string> =>
   addr ? { 'x-wallet-address': addr.toLowerCase() } : {};
 
+export async function getGitHubAppInstallStatus(githubLogin: string): Promise<{
+  ok: boolean;
+  githubLogin: string;
+  installed: boolean;
+  installUrl: string;
+}> {
+  const res = await fetch(
+    `${BASE}/auth/github/install-status?github_login=${encodeURIComponent(githubLogin)}`,
+    { cache: 'no-store' },
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`[auth.github.install-status] ${res.status}: ${body.slice(0, 200)}`);
+  }
+  return res.json() as Promise<{ ok: boolean; githubLogin: string; installed: boolean; installUrl: string }>;
+}
+
+export async function linkWalletToGithubSession(githubLogin: string, walletAddress: string): Promise<{
+  ok: boolean;
+  githubLogin: string;
+  walletAddress: string;
+}> {
+  const res = await fetch(`${BASE}/auth/github/link-wallet`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ githubLogin, walletAddress }),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`[auth.github.link-wallet] ${res.status}: ${body.slice(0, 200)}`);
+  }
+  return res.json() as Promise<{ ok: boolean; githubLogin: string; walletAddress: string }>;
+}
+
 // ── reviewer ────────────────────────────────────────────────────────────────
 
 export type LeaderboardRow = Reviewer & { rank: number };

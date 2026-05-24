@@ -157,6 +157,29 @@ export function createApp(options: AppOptions) {
     }
   });
 
+  app.post('/auth/github/link-wallet', async (c) => {
+    let body: { githubLogin?: string; walletAddress?: string };
+    try {
+      body = (await c.req.json()) as { githubLogin?: string; walletAddress?: string };
+    } catch {
+      return c.json({ error: 'invalid_json' }, 400);
+    }
+
+    const githubLogin = body.githubLogin?.trim();
+    const walletAddress = body.walletAddress?.toLowerCase().trim();
+    if (!githubLogin || !walletAddress) return c.json({ error: 'missing_fields' }, 400);
+    if (!/^0x[a-f0-9]{40}$/.test(walletAddress)) return c.json({ error: 'invalid_wallet' }, 400);
+
+    try {
+      await upsertReviewerFromOAuth(walletAddress, githubLogin);
+      return c.json({ ok: true, githubLogin, walletAddress });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[auth] wallet link failed', { githubLogin, walletAddress, message });
+      return c.json({ ok: false, error: 'wallet_link_failed' }, 500);
+    }
+  });
+
   app.get('/health', async (c) => {
     if (!options.healthCheck) return c.json({ ok: true, service: 'gitledger-backend' });
     const report = await options.healthCheck();

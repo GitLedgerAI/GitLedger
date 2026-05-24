@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
+import { getGitHubAppInstallStatus, linkWalletToGithubSession } from './api';
 
 const SESSION_KEY = 'cl_github_session';
 
@@ -17,7 +18,10 @@ export interface GithubSession {
   basename: string | null;
   walletAddress: string | null;
   appInstallConfirmed?: boolean;
+  appInstalled?: boolean;
 }
+
+type AppInstallStatus = 'idle' | 'checking' | 'installed' | 'not_installed' | 'error';
 
 interface AuthContextType {
   walletAddress: `0x${string}` | undefined;
@@ -26,6 +30,9 @@ interface AuthContextType {
   isGithubLinked: boolean;
   isFullyRegistered: boolean;
   displayName: string | null;
+  appInstallStatus: AppInstallStatus;
+  appInstallCheckError: string | null;
+  refreshAppInstallStatus: () => Promise<void>;
   connectGitHub: () => void;
   confirmAppInstall: () => void;
   disconnectAll: () => void;
@@ -41,6 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { disconnect } = useDisconnect();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [githubSession, setGithubSession] = useState<GithubSession | null>(null);
+  const [appInstallStatus, setAppInstallStatus] = useState<AppInstallStatus>('idle');
+  const [appInstallCheckError, setAppInstallCheckError] = useState<string | null>(null);
+  const [isWalletLinking, setIsWalletLinking] = useState(false);
 
   // Restore GitHub session from localStorage (GitHub-first: works without wallet too)
   useEffect(() => {
@@ -57,30 +67,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   }, [address]);
 
-  // Auto-open modal after GitHub OAuth redirect
+  // Auto-open modal only after fresh OAuth redirect to avoid repeated prompts across pages.
   useEffect(() => {
     if (!githubSession) return;
-    if (!isConnected) {
-      // Always prompt to connect wallet if missing
-      setIsModalOpen(true);
-      return;
-    }
-    // Wallet connected — only prompt for app install on a fresh OAuth login
     const isFreshOAuth = typeof window !== 'undefined' && sessionStorage.getItem('cl_fresh_oauth') === '1';
-    if (isFreshOAuth && !githubSession.appInstallConfirmed) {
-      sessionStorage.removeItem('cl_fresh_oauth');
+    if (isFreshOAuth) {
       setIsModalOpen(true);
+      sessionStorage.removeItem('cl_fresh_oauth');
     }
   }, [githubSession, isConnected]);
 
-  // Auto-link wallet address into a GitHub-first session once wallet connects
+  // Auto-link wallet address into a GitHub-first session once wallet connects.
+  // This ensures backend reviewer row exists for protected tRPC routes.
   useEffect(() => {
-    if (address && githubSession && !githubSession.walletAddress) {
-      const linked = { ...githubSession, walletAddress: address };
-      setGithubSession(linked);
-      try { localStorage.setItem(SESSION_KEY, JSON.stringify(linked)); } catch { /* ignore */ }
-    }
-  }, [address, githubSession]);
+    if (!address || !githubSession?.githubLogin || isWalletLinking) return;
+    const normalizedAddress = address.toLowerCase();
+    const alreadyLinked = githubSession.walletAddress?.toLowerCase() === normalizedAddress;
+    if (alreadyLinked) return;
+
+    setIsWalletLinking(true);
+    void (async () => {
+      try {
+        await linkWalletToGithubSession(githubSession.githubLogin, normalizedAddress);
+        const linked = { ...githubSession, walletAddress: normalizedAddress };
+        setGithubSession(linked);
+        try { localStorage.setItem(SESSION_KEY, JSON.stringify(linked)); } catch { /* ignore */ }
+      } catch (error) {
+        console.error('[auth] failed to link wallet to github session', error);
+      } finally {
+        setIsWalletLinking(false);
+      }
+    })();
+  }, [address, githubSession, isWalletLinking]);
 
   const connectGitHub = useCallback(() => {
     const api = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001';
@@ -89,9 +107,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = `${api}/auth/github?callback=${cb}${walletParam}`;
   }, [address]);
 
+  const refreshAppInstallStatus = useCallback(async () => {
+    if (!githubSession?.githubLogin || !isConnected) return;
+    setAppInstallStatus('checking');
+    setAppInstallCheckError(null);
+    try {
+      const status = await Promise.race([
+        getGitHubAppInstallStatus(githubSession.githubLogin),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('install status check timeout')), 10000),
+        ),
+      ]);
+      const installed = !!status.installed;
+      setAppInstallStatus(installed ? 'installed' : 'not_installed');
+      setGithubSession((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev, appInstalled: installed, appInstallConfirmed: installed ? true : prev.appInstallConfirmed };
+        try { localStorage.setItem(SESSION_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+        return next;
+      });
+    } catch (error) {
+      setAppInstallStatus('error');
+      setAppInstallCheckError(error instanceof Error ? error.message : String(error));
+    }
+  }, [githubSession?.githubLogin, isConnected]);
+
+  useEffect(() => {
+    if (!githubSession?.githubLogin || !isConnected) {
+      setAppInstallStatus('idle');
+      return;
+    }
+    if (githubSession.appInstalled === true) {
+      setAppInstallStatus('installed');
+      return;
+    }
+    void refreshAppInstallStatus();
+  }, [githubSession?.githubLogin, githubSession?.appInstalled, isConnected, refreshAppInstallStatus]);
+
   const confirmAppInstall = useCallback(() => {
     if (!githubSession) return;
-    const updated = { ...githubSession, appInstallConfirmed: true };
+    const updated = { ...githubSession, appInstallConfirmed: true, appInstalled: true };
     setGithubSession(updated);
     try { localStorage.setItem(SESSION_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
   }, [githubSession]);
@@ -117,6 +172,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isGithubLinked: !!githubSession,
         isFullyRegistered: isConnected && !!githubSession,
         displayName,
+        appInstallStatus,
+        appInstallCheckError,
+        refreshAppInstallStatus,
         connectGitHub,
         confirmAppInstall,
         disconnectAll,

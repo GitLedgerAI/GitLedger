@@ -1,4 +1,4 @@
-import { createConfig, http } from 'wagmi';
+import { createConfig, createStorage, http } from 'wagmi';
 import { base } from 'viem/chains';
 import { coinbaseWallet, injected, metaMask } from 'wagmi/connectors';
 
@@ -12,5 +12,8 @@ export const wagmiConfig = createConfig({
   transports: {
     [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'),
   },
+  storage: createStorage({
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  }),
   ssr: true,
 });
