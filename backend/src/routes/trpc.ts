@@ -169,6 +169,7 @@ const stakeRouter = t.router({
     const { confirmStakeOnchainAndActivate } = await import('../services/stakeConfirmation');
     const result = await confirmStakeOnchainAndActivate({
       stakeId: input.stakeId,
+      reviewerAddress: ctx.walletAddress as `0x${string}`,
       reviewerBasename: input.basename,
       repoSlug: input.repoSlug,
       prId: input.prId,
