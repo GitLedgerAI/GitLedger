@@ -18,6 +18,7 @@ const envSchema = z.object({
   PROMPT_STAKE_DLQ_NAME: z.string().default('gitledger:queue:prompt-stake:dlq'),
   PROMPT_STAKE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
   NOTIFIER_WEBHOOK_URL: z.string().url().optional(),
+  NOTIFIER_WEBHOOK_AUTH_TOKEN: z.string().min(1).optional(),
   INTERNAL_API_TOKEN: z.string().min(1),
   ADMIN_API_TOKEN: z.string().min(1).default('dev_admin_token'),
   INTERNAL_SERVICE_TOKEN: z.string().min(1).default('dev_internal_service_token'),

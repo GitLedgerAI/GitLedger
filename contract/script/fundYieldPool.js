@@ -10,18 +10,40 @@ const { ethers } = require("hardhat");
 const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 async function main() {
-    const [treasuryManager] = await ethers.getSigners();
-    const glAddress   = requireEnv("GITLEDGER_ADDRESS");
+    const glAddress = requireEnv("GITLEDGER_ADDRESS");
     const usdcAddress = process.env.USDC_ADDRESS || BASE_USDC;
-    const amountUsdc  = process.env.AMOUNT_USDC || "1000";
+    const amountUsdc = process.env.AMOUNT_USDC || "1000";
+    const treasuryManagerPk = process.env.TREASURY_MANAGER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
+    if (!treasuryManagerPk) {
+        throw new Error("Missing TREASURY_MANAGER_PRIVATE_KEY (or DEPLOYER_PRIVATE_KEY fallback)");
+    }
+    const treasuryManager = new ethers.Wallet(
+        treasuryManagerPk.startsWith("0x") ? treasuryManagerPk : `0x${treasuryManagerPk}`,
+        ethers.provider
+    );
 
     const amount = ethers.parseUnits(amountUsdc, 6);
 
-    const usdc = await ethers.getContractAt("MockUSDC", usdcAddress); // or IERC20
-    const gl   = await ethers.getContractAt("GitLedger", glAddress);
+    const usdc = await ethers.getContractAt(
+        [
+            "function approve(address spender, uint256 amount) external returns (bool)",
+            "function balanceOf(address account) external view returns (uint256)"
+        ],
+        usdcAddress
+    );
+    const gl = await ethers.getContractAt("GitLedger", glAddress);
+
+    const configuredTreasuryManager = await gl.treasuryManager();
+    if (configuredTreasuryManager.toLowerCase() !== treasuryManager.address.toLowerCase()) {
+        throw new Error(
+            `Signer ${treasuryManager.address} is not contract treasuryManager ${configuredTreasuryManager}`
+        );
+    }
 
     console.log("Treasury manager:", treasuryManager.address);
     console.log("Funding yield pool with:", amountUsdc, "USDC");
+    const usdcBal = await usdc.balanceOf(treasuryManager.address);
+    console.log("Treasury manager USDC balance:", ethers.formatUnits(usdcBal, 6));
 
     // Approve
     const approveTx = await usdc.connect(treasuryManager).approve(glAddress, amount);

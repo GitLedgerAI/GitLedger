@@ -8,7 +8,10 @@ export async function processPromptStakeJob(job: PromptStakeJob): Promise<void> 
 
   const res = await fetch(env.NOTIFIER_WEBHOOK_URL, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(env.NOTIFIER_WEBHOOK_AUTH_TOKEN ? { authorization: `Bearer ${env.NOTIFIER_WEBHOOK_AUTH_TOKEN}` } : {}),
+    },
     body: JSON.stringify({
       type: 'prompt_stake',
       reviewerLogin: job.reviewerLogin,
