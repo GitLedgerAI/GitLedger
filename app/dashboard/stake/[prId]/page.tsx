@@ -33,17 +33,22 @@ function StakeFlowInner({ prId }: { prId: number }) {
   const usdcAmount = parseFloat(amount) || 0;
   const multiplier = (reviewer?.reputationScore ?? 0) >= 700 ? 1.5 : 1;
   const estimatedYield = usdcAmount * 0.18 * (30 / 365) * multiplier;
-  const minStake = pr ? pr.minStakeUsdc / 1_000_000 : 1;
-  const effectiveMin = Math.max(minStake, 1);
+  const minStake = pr ? pr.minStakeUsdc / 1_000_000 : 0.5;
+  const effectiveMin = Math.max(minStake, 0.5);
 
   async function handleConfirmStake() {
     if (!isWalletConnected || !isFullyRegistered) { openModal(); return; }
     if (!walletAddress) return;
+    const basename = githubSession?.basename;
+    if (!basename) {
+      setSignError('No Basename linked. Re-link your GitHub account to set one up.');
+      return;
+    }
     setSignError('');
     setStep('signing');
     try {
       const result = await submitStake({
-        basename: githubSession?.basename ?? '',
+        basename,
         repoSlug: pr?.repoSlug ?? repoSlug,
         prId: pr?.prId ?? prId,
         amountUsdc: Math.round(usdcAmount * 1_000_000),

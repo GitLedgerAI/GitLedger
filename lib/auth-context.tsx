@@ -16,6 +16,7 @@ export interface GithubSession {
   githubLogin: string;
   basename: string | null;
   walletAddress: string | null;
+  appInstallConfirmed?: boolean;
 }
 
 interface AuthContextType {
@@ -26,6 +27,7 @@ interface AuthContextType {
   isFullyRegistered: boolean;
   displayName: string | null;
   connectGitHub: () => void;
+  confirmAppInstall: () => void;
   disconnectAll: () => void;
   isModalOpen: boolean;
   openModal: () => void;
@@ -42,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore GitHub session from localStorage (GitHub-first: works without wallet too)
   useEffect(() => {
+    localStorage.removeItem('cl_app_installed');
     try {
       const raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return;
@@ -54,9 +57,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   }, [address]);
 
-  // Auto-open modal to wallet step after GitHub OAuth redirect
+  // Auto-open modal after GitHub OAuth redirect
   useEffect(() => {
-    if (githubSession && !isConnected) setIsModalOpen(true);
+    if (!githubSession) return;
+    if (!isConnected) {
+      // Always prompt to connect wallet if missing
+      setIsModalOpen(true);
+      return;
+    }
+    // Wallet connected — only prompt for app install on a fresh OAuth login
+    const isFreshOAuth = typeof window !== 'undefined' && sessionStorage.getItem('cl_fresh_oauth') === '1';
+    if (isFreshOAuth && !githubSession.appInstallConfirmed) {
+      sessionStorage.removeItem('cl_fresh_oauth');
+      setIsModalOpen(true);
+    }
   }, [githubSession, isConnected]);
 
   // Auto-link wallet address into a GitHub-first session once wallet connects
@@ -74,6 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const walletParam = address ? `&wallet=${address}` : '';
     window.location.href = `${api}/auth/github?callback=${cb}${walletParam}`;
   }, [address]);
+
+  const confirmAppInstall = useCallback(() => {
+    if (!githubSession) return;
+    const updated = { ...githubSession, appInstallConfirmed: true };
+    setGithubSession(updated);
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
+  }, [githubSession]);
 
   const disconnectAll = useCallback(() => {
     localStorage.removeItem(SESSION_KEY);
@@ -97,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isFullyRegistered: isConnected && !!githubSession,
         displayName,
         connectGitHub,
+        confirmAppInstall,
         disconnectAll,
         isModalOpen,
         openModal: () => setIsModalOpen(true),
@@ -117,5 +139,6 @@ export function useAuth() {
 export function storeGithubSession(session: GithubSession) {
   if (typeof window !== 'undefined') {
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    sessionStorage.setItem('cl_fresh_oauth', '1');
   }
 }

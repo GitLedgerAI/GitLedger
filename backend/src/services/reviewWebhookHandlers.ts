@@ -91,7 +91,7 @@ export async function handleApprovedReviewSubmitted(
     return { queued: false, reason: 'repo_not_enabled' };
   }
 
-  const minStakeUsdc = repo.minStakeUsdc ?? 10_000_000;
+  const minStakeUsdc = repo.minStakeUsdc ?? 500_000;
   const reviewerAddr = `github:${input.reviewerLogin}`;
   const stakeId = deriveStakeId(input.repoSlug, input.prId, input.reviewerLogin);
 

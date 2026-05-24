@@ -155,12 +155,12 @@ const stakeRouter = t.router({
       changedFiles: pr?.changedFiles ?? 0,
       author: pr?.author ?? '',
       languages,
-      minStakeUsdc: repoRow?.minStakeUsdc ?? 3_000_000,
+      minStakeUsdc: repoRow?.minStakeUsdc ?? 500_000,
       stakeEnabled: repoRow?.stakeEnabled ?? false,
     };
   }),
 
-  submit: protectedProcedure.input(z.object({ basename: z.string(), repoSlug: z.string(), prId: z.number().int().positive(), amountUsdc: z.number().int().min(3_000_000), stakeId: z.string() })).mutation(async ({ input, ctx }) => {
+  submit: protectedProcedure.input(z.object({ basename: z.string(), repoSlug: z.string(), prId: z.number().int().positive(), amountUsdc: z.number().int().min(500_000), stakeId: z.string() })).mutation(async ({ input, ctx }) => {
     const reviewer = await db.query.reviewers.findFirst({ where: eq(reviewers.address, ctx.walletAddress!) });
     if (!reviewer) throw new TRPCError({ code: 'UNAUTHORIZED' });
     if (reviewer.basename && reviewer.basename !== input.basename) {
@@ -216,7 +216,7 @@ const repoRouter = t.router({
       activeReviews: Number(a.activeReviews ?? 0),
       slashCount: Number(a.slashCount ?? 0),
       slashRate,
-      minStakeUsdc: row.minStakeUsdc ?? 3_000_000,
+      minStakeUsdc: row.minStakeUsdc ?? 500_000,
       stakeEnabled: row.stakeEnabled ?? false,
     };
   }),

@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useConnect } from 'wagmi';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
 function WalletIcon({ name }: { name: string }) {
@@ -55,7 +55,6 @@ function getConnectorSub(name: string): string {
   return 'Browser extension';
 }
 
-const INSTALL_KEY = 'cl_app_installed';
 const APP_SLUG = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG ?? 'gitledger';
 
 export default function AuthModal() {
@@ -64,19 +63,15 @@ export default function AuthModal() {
     closeModal,
     isWalletConnected,
     isGithubLinked,
+    githubSession,
     connectGitHub,
+    confirmAppInstall,
     disconnectAll,
   } = useAuth();
   const { connect, connectors, isPending, variables } = useConnect();
 
-  const [appInstalled, setAppInstalled] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(INSTALL_KEY) === '1';
-  });
-
   const dismissInstall = () => {
-    localStorage.setItem(INSTALL_KEY, '1');
-    setAppInstalled(true);
+    confirmAppInstall();
     closeModal();
   };
 
@@ -84,7 +79,7 @@ export default function AuthModal() {
     ? 'github'
     : !isWalletConnected
     ? 'wallet'
-    : !appInstalled
+    : !githubSession?.appInstallConfirmed
     ? 'install'
     : 'done';
 
