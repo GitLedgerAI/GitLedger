@@ -11,8 +11,7 @@ let publishImpl: QueuePublisher | null = null;
 
 let enqueueImpl: EnqueueFn = async (job) => {
   if (!publishImpl) {
-    console.info('[queue] prompt-stake (noop publisher)', job);
-    return;
+    throw new Error(`prompt stake queue publisher not configured for job ${JSON.stringify(job)}`);
   }
 
   await publishImpl(queueName, JSON.stringify(job));
@@ -39,8 +38,7 @@ export function resetEnqueuePromptStakeForTests(): void {
   queueName = DEFAULT_QUEUE_NAME;
   enqueueImpl = async (job) => {
     if (!publishImpl) {
-      console.info('[queue] prompt-stake (noop publisher)', job);
-      return;
+      throw new Error(`prompt stake queue publisher not configured for job ${JSON.stringify(job)}`);
     }
     await publishImpl(queueName, JSON.stringify(job));
   };

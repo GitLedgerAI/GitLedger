@@ -3,8 +3,7 @@ import { env } from '../config/env';
 
 export async function processPromptStakeJob(job: PromptStakeJob): Promise<void> {
   if (!env.NOTIFIER_WEBHOOK_URL) {
-    console.info('[worker] notifier not configured; job acknowledged', job);
-    return;
+    throw new Error(`[worker] notifier not configured for prompt stake job ${JSON.stringify(job)}`);
   }
 
   const res = await fetch(env.NOTIFIER_WEBHOOK_URL, {
