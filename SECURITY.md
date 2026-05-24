@@ -5,7 +5,7 @@ This project is pre-1.0 and actively developed. Security fixes are applied on `m
 
 ## Reporting a vulnerability
 - Do not open public issues for vulnerabilities.
-- Email: `security@gitledger.ai` (replace if your security inbox differs).
+- Email: `security@gitledger.tech`.
 - Include:
   - vulnerability type and impact
   - affected components (`backend`, `contract`, `frontend`)
