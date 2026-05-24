@@ -112,10 +112,11 @@ const reviewerRouter = t.router({
 });
 
 const stakeRouter = t.router({
-  getMyStakes: protectedProcedure.input(z.object({ address: z.string() })).query(async ({ input, ctx }) => {
+  getMyStakes: protectedProcedure.input(z.object({ address: z.string().optional() })).query(async ({ input, ctx }) => {
     const requestor = ctx.walletAddress!;
+    const targetAddress = (input.address ?? requestor).toLowerCase();
     const isAdmin = ctx.role === 'admin' || ctx.role === 'internal_service';
-    if (!isAdmin && requestor !== input.address.toLowerCase()) {
+    if (!isAdmin && requestor !== targetAddress) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'cannot_access_other_user_stakes' });
     }
     const rows = await db
@@ -136,7 +137,7 @@ const stakeRouter = t.router({
       })
       .from(stakes)
       .leftJoin(repos, eq(stakes.repoId, repos.id))
-      .where(eq(stakes.reviewerAddr, input.address.toLowerCase()))
+      .where(eq(stakes.reviewerAddr, targetAddress))
       .orderBy(desc(stakes.stakedAt));
     return rows;
   }),
