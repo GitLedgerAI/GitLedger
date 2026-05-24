@@ -4,7 +4,7 @@ export const repos = pgTable('repos', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: text('slug').unique().notNull(),
   ghInstallId: bigint('gh_install_id', { mode: 'number' }),
-  minStakeUsdc: integer('min_stake_usdc').default(10_000_000),
+  minStakeUsdc: integer('min_stake_usdc').default(3_000_000),
   stakeEnabled: boolean('stake_enabled').default(true),
   installedAt: timestamp('installed_at').defaultNow(),
 });
@@ -82,15 +82,4 @@ export const promptStakeJobs = pgTable('prompt_stake_jobs', {
   error: text('error'),
   receivedAt: timestamp('received_at').notNull().defaultNow(),
   processedAt: timestamp('processed_at'),
-});
-
-export const promptStakeNotifications = pgTable('prompt_stake_notifications', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  reviewerLogin: text('reviewer_login').notNull(),
-  repoSlug: text('repo_slug').notNull(),
-  prId: integer('pr_id').notNull(),
-  minStakeUsdc: integer('min_stake_usdc').notNull(),
-  source: text('source').notNull().default('webhook'),
-  payload: jsonb('payload').notNull(),
-  receivedAt: timestamp('received_at').notNull().defaultNow(),
 });
