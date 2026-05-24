@@ -1,10 +1,14 @@
 import Image from "next/image";
 
-const COLS = {
-  Protocol:   ["How It Works", "Stake Mechanics", "EAS Attestations", "x402 API"],
-  Build:      ["GitHub App", "Smart Contracts", "Chainlink Oracle", "API Docs"],
-  Community:  ["Twitter / X", "Telegram"],
-};
+const PROTOCOL_LINKS = ["How It Works", "Stake Mechanics", "EAS Attestations", "x402 API"];
+const COMMUNITY_LINKS = [
+  { label: "Twitter / X", href: "https://x.com/gitledger_" },
+  { label: "Telegram",    href: "#" },
+];
+const RESOURCE_LINKS = [
+  { label: "Roadmap",     href: "/roadmap" },
+  { label: "White Paper", href: "/whitepaper" },
+];
 
 export default function Footer() {
   return (
@@ -27,23 +31,63 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* Links */}
-          {Object.entries(COLS).map(([col, items]) => (
-            <div key={col}>
-              <p className="text-[10px] font-mono tracking-[0.24em] text-white/30 uppercase mb-5">
-                {col}
-              </p>
-              <ul className="flex flex-col gap-3">
-                {items.map((item) => (
-                  <li key={item}>
-                    <a href="#" className="text-white/22 text-sm font-light hover:text-white/55 transition-colors duration-200">
-                      {item}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {/* Protocol */}
+          <div>
+            <p className="text-[10px] font-mono tracking-[0.24em] text-white/30 uppercase mb-5">
+              Protocol
+            </p>
+            <ul className="flex flex-col gap-3">
+              {PROTOCOL_LINKS.map((item) => (
+                <li key={item}>
+                  <a href="#" className="text-white/22 text-sm font-light hover:text-white/55 transition-colors duration-200">
+                    {item}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Resources */}
+          <div>
+            <p className="text-[10px] font-mono tracking-[0.24em] text-white/30 uppercase mb-5">
+              Resources
+            </p>
+            <ul className="flex flex-col gap-3">
+              {RESOURCE_LINKS.map(({ label, href }) => (
+                <li key={label}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-white/22 text-sm font-light hover:text-white/55 transition-colors duration-200"
+                  >
+                    {label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Community */}
+          <div>
+            <p className="text-[10px] font-mono tracking-[0.24em] text-white/30 uppercase mb-5">
+              Community
+            </p>
+            <ul className="flex flex-col gap-3">
+              {COMMUNITY_LINKS.map(({ label, href }) => (
+                <li key={label}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-white/22 text-sm font-light hover:text-white/55 transition-colors duration-200"
+                  >
+                    {label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         <div className="hr mb-8" />

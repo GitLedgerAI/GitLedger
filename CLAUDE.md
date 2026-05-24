@@ -134,12 +134,14 @@ NEXT_PUBLIC_CHAIN_ID=8453
 ### Sprint 5 — Frontend (per roadmap Days 13–15)
 _Next.js: Landing, Reviewer Profile, Dashboard, StakeFlow, Leaderboard. OnchainKit Identity + Transaction._
 
-- [ ] `/` Landing page — hero, live feed, metrics, how-it-works, CTA
-- [ ] `/reviewer/[basename]` — ReviewerProfile with EAS history
-- [ ] `/dashboard` — MyDashboard with active stakes
-- [ ] `/dashboard/stake/[prId]` — StakeFlow with wallet prompt
-- [ ] `/explore` — Leaderboard
-- [ ] `/repo/[slug]` — RepoReviews
+- [DONE] Backend integration: `lib/api.ts` (tRPC batch-link client), `lib/hooks.ts` (React Query hooks), `.env.local` — all procedures wired
+- [DONE] `/` Landing page — live feed now uses `useLiveFeed()` with mock fallback — `app/page.tsx`
+- [DONE] `/reviewer/[basename]` — real data via `useReviewer` + `useReviewerAttestations` — `app/reviewer/[basename]/page.tsx`
+- [DONE] `/dashboard` — real stakes + reviewer stats from API, auth-gated unauthenticated state — `app/dashboard/page.tsx`
+- [DONE] `/dashboard/stake/[prId]` — reviewer multiplier from real API score — `app/dashboard/stake/[prId]/page.tsx`
+- [DONE] `/explore` — real leaderboard via `useLeaderboard()`, accuracy computed from counts — `app/explore/page.tsx`
+- [DONE] `/repo/[slug]` — real data via `useRepo` + `useRepoAttestations` — `app/repo/[slug]/page.tsx`
+- [DONE] Auth flow: GitHub-first, null wallet handled in callback, ConnectButton updated — `app/auth/callback/page.tsx`, `components/ConnectButton.tsx`
 
 ---
 

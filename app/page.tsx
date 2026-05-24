@@ -2,6 +2,7 @@
 
 import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 import { useRef } from "react";
 import CellGrid from "@/components/CellGrid";
 import EmailSignup from "@/components/EmailSignup";
@@ -12,12 +13,18 @@ import LogoMark from "@/components/LogoMark";
 import Marquee from "@/components/Marquee";
 import Reveal from "@/components/Reveal";
 import StatsBar from "@/components/StatsBar";
+import VerdictBadge from "@/components/VerdictBadge";
+import { MOCK_LIVE_FEED } from "@/lib/mock-data";
+import { formatUsdc, formatRelativeDate } from "@/lib/utils";
+import { useLiveFeed } from "@/lib/hooks";
 
 export default function Home() {
   const heroRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   const bgY  = useTransform(scrollYProgress, [0, 1], ["0%", "22%"]);
   const fade = useTransform(scrollYProgress, [0, 0.65], [1, 0]);
+  const { data: liveFeed } = useLiveFeed();
+  const feedItems = liveFeed ?? MOCK_LIVE_FEED;
 
   return (
     <main className="relative min-h-screen flex flex-col bg-[#0a0a0b]">
@@ -47,34 +54,6 @@ export default function Home() {
           </span>
         </motion.div>
 
-        {/* ── Navbar ── */}
-        <motion.header
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55 }}
-          className="relative z-20 flex items-center justify-between px-6 sm:px-12 py-6 border-b border-white/06"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 border border-white/20 flex items-center justify-center">
-              <Image src="/logo.png" alt="" width={16} height={16} style={{ filter: "invert(1)" }} />
-            </div>
-            <span className="font-mono font-bold tracking-[0.15em] text-sm text-white/90 uppercase">
-              GitLedger
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <span className="hidden sm:block text-[11px] font-mono tracking-[0.2em] text-white/25 uppercase">
-              v0.1-Alpha
-            </span>
-            <div className="flex items-center gap-2 px-3 py-1.5 border border-white/10 rounded-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-pulse" />
-              <span className="text-[10px] font-mono tracking-[0.18em] text-white/40 uppercase">
-                Base L2
-              </span>
-            </div>
-          </div>
-        </motion.header>
 
         {/* ── Hero content ── */}
         <motion.div
@@ -167,6 +146,23 @@ export default function Home() {
           >
             <EmailSignup />
           </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 1.1 }}
+            className="mt-5"
+          >
+            <a
+              href="/whitepaper"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2 border border-white/10 text-[11px] font-mono tracking-[0.2em] text-white/40 uppercase hover:text-white/70 hover:border-white/20 transition-all duration-200"
+            >
+              Read White Paper
+              <span className="text-white/25">↗</span>
+            </a>
+          </motion.div>
         </motion.div>
 
         {/* Bottom tech tags */}
@@ -193,6 +189,50 @@ export default function Home() {
           STATS
       ══════════════════════════════════════ */}
       <StatsBar />
+
+      {/* ══════════════════════════════════════
+          LIVE ATTESTATION FEED
+      ══════════════════════════════════════ */}
+      <section className="relative z-10 w-full max-w-6xl mx-auto px-6 sm:px-12 py-16">
+        <Reveal direction="up">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70 animate-pulse" />
+              <p className="text-[10px] font-mono tracking-[0.28em] text-white/30 uppercase">Live Attestations</p>
+            </div>
+            <Link href="/explore" className="text-[10px] font-mono tracking-[0.18em] text-white/20 uppercase hover:text-white/50 transition-colors duration-200">
+              Leaderboard →
+            </Link>
+          </div>
+        </Reveal>
+        <div className="flex flex-col border border-white/[0.06]">
+          {feedItems.map((item, i) => (
+            <Reveal key={i} direction="up" delay={i * 0.06}>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_90px_90px_100px] gap-2 sm:gap-4 px-5 py-3.5 border-b border-white/[0.04] hover:bg-[#111113] transition-colors duration-200">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-6 h-6 bg-[#1a1c1f] border border-white/[0.08] flex items-center justify-center shrink-0">
+                    <span className="text-[9px] font-mono font-bold text-white/25">{item.basename[0].toUpperCase()}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-mono text-white/70 truncate">{item.basename}</span>
+                    <span className="text-[10px] font-mono text-white/25 ml-2">{item.repoSlug}</span>
+                  </div>
+                </div>
+                <div className="flex sm:justify-start items-center">
+                  <span className="text-xs font-mono font-bold text-white/55">#{item.prId}</span>
+                </div>
+                <div className="flex sm:justify-start items-center">
+                  <VerdictBadge verdict={item.verdict} size="sm" />
+                </div>
+                <div className="flex sm:justify-start items-center gap-3">
+                  <span className="text-xs font-mono font-bold text-white/60">{formatUsdc(item.stakeAmount)}</span>
+                  <span className="text-[10px] font-mono text-white/20">{formatRelativeDate(item.timestamp)}</span>
+                </div>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
 
       {/* ══════════════════════════════════════
           PROBLEM — editorial two-column
