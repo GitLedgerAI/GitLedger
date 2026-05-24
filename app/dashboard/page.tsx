@@ -23,6 +23,7 @@ export default function MyDashboard() {
 
   const active = stakes.filter(s => s.state === 'active' || s.state === 'pending_stake');
   const past   = stakes.filter(s => s.state === 'clean' || s.state === 'slashed');
+  const pendingCount = stakes.filter(s => s.state === 'pending_stake').length;
 
   const totalActiveStake = active.reduce((sum, s) => sum + s.amountUsdc, 0);
   const totalYield = past.filter(s => s.state === 'clean').reduce((sum, s) => sum + (s.yieldEarned ?? 0), 0);
@@ -110,6 +111,17 @@ export default function MyDashboard() {
             </button>
           ))}
         </div>
+
+        {!isLoading && pendingCount > 0 && (
+          <div className="mb-6 border border-amber-400/20 bg-amber-400/[0.04] px-4 py-3">
+            <p className="text-[10px] font-mono tracking-[0.16em] uppercase text-amber-300/80">
+              {pendingCount} stake awaiting on-chain confirmation.
+            </p>
+            <p className="text-[10px] font-mono text-white/35 mt-1">
+              Open the pending stake and complete Confirm Stake. This dashboard auto-refreshes every 10s.
+            </p>
+          </div>
+        )}
 
         {isLoading && (
           <div className="flex flex-col gap-2">

@@ -26,7 +26,7 @@ export default function StakeCard({ stake, showActions = false }: StakeCardProps
         <div className="flex items-center gap-3 mt-1">
           <span className="text-[10px] font-mono text-white/25">Staked {formatDate(stake.stakedAt)}</span>
           {stake.state === 'pending_stake' && (
-            <span className="text-[10px] font-mono text-amber-400/70">Awaiting on-chain confirmation</span>
+            <span className="text-[10px] font-mono text-amber-400/70">Awaiting on-chain confirmation. Open and confirm stake.</span>
           )}
           {stake.state === 'active' && (
             <span className="text-[10px] font-mono text-amber-400/70">{days}d remaining</span>
@@ -47,7 +47,7 @@ export default function StakeCard({ stake, showActions = false }: StakeCardProps
             href={`/dashboard/stake/${stake.prId}?repo=${encodeURIComponent(stake.repoSlug ?? '')}`}
             className="text-[9px] font-mono tracking-widest text-white/25 hover:text-white/55 uppercase transition-colors duration-200"
           >
-            View →
+            {stake.state === 'pending_stake' ? 'Confirm Stake →' : 'View →'}
           </Link>
         )}
       </div>

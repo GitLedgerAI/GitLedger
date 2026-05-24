@@ -39,6 +39,7 @@ export function useMyStakes(address: string | null | undefined) {
     queryFn: () => api.getMyStakes(address!),
     enabled: !!address,
     staleTime: 30_000,
+    refetchInterval: 10_000,
   });
 }
 
