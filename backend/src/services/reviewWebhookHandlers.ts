@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client';
 import { repos, reviewers, stakes } from '../db/schema';
 import { enqueuePromptStake } from './queue';
+import { deriveStakeId } from './stakeId';
 
 export type ApprovedReviewInput = {
   reviewerLogin: string;
@@ -87,7 +88,7 @@ export async function handleApprovedReviewSubmitted(
 
   const minStakeUsdc = repo.minStakeUsdc ?? 10_000_000;
   const reviewerAddr = `github:${input.reviewerLogin}`;
-  const stakeId = `pending:${input.repoSlug}:${input.prId}:${input.reviewerLogin}`;
+  const stakeId = deriveStakeId(input.repoSlug, input.prId, input.reviewerLogin);
 
   await deps.upsertReviewerByGithubLogin(input.reviewerLogin);
 

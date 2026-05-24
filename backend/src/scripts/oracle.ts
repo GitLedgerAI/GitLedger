@@ -47,13 +47,26 @@ for (const s of due) {
   if (!s.stakes.stakeId) continue;
   const repoSlug = s.repos?.slug ?? '';
   if (!repoSlug) continue;
+  const reviewer = s.stakes.reviewerAddr;
+  if (!reviewer?.startsWith('0x')) continue;
   const hotfix = await checkHotfix(repoSlug, s.stakes.prId);
   if (hotfix.found) {
     const reporterAddress = await resolveReporterAddress(hotfix.reporter);
-    await writeSlashReview({ stakeId: s.stakes.stakeId as `0x${string}`, reporter: reporterAddress });
+    await writeSlashReview({
+      stakeId: s.stakes.stakeId as `0x${string}`,
+      reporter: reporterAddress,
+      reviewer: reviewer as `0x${string}`,
+      repoSlug,
+      prId: s.stakes.prId,
+    });
     console.info('[oracle] slashed stake', { stakeId: s.stakes.stakeId, reporter: reporterAddress });
   } else {
-    await writeReleaseYield({ stakeId: s.stakes.stakeId as `0x${string}` });
+    await writeReleaseYield({
+      stakeId: s.stakes.stakeId as `0x${string}`,
+      reviewer: reviewer as `0x${string}`,
+      repoSlug,
+      prId: s.stakes.prId,
+    });
     console.info('[oracle] released stake', { stakeId: s.stakes.stakeId });
   }
 }

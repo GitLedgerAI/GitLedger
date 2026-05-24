@@ -6,6 +6,7 @@ import { attestations, promptStakeJobs, repos, reviewers, stakes } from '../db/s
 import type { TRPCContext, UserRole } from '../trpc/context';
 import { reviewerExists } from '../trpc/context';
 import { getLanguages, getPullRequest, getRepo } from '../services/githubApi';
+import { deriveStakeId } from '../services/stakeId';
 
 const t = initTRPC.context<TRPCContext>().create();
 
@@ -159,16 +160,23 @@ const stakeRouter = t.router({
     };
   }),
 
-  submit: protectedProcedure.input(z.object({ basename: z.string(), repoSlug: z.string(), prId: z.number().int().positive(), amountUsdc: z.number().int().positive(), stakeId: z.string() })).mutation(async ({ input, ctx }) => {
+  submit: protectedProcedure.input(z.object({ basename: z.string(), repoSlug: z.string(), prId: z.number().int().positive(), amountUsdc: z.number().int().positive(), stakeId: z.string().optional() })).mutation(async ({ input, ctx }) => {
     const reviewer = await db.query.reviewers.findFirst({ where: eq(reviewers.address, ctx.walletAddress!) });
     if (!reviewer) throw new TRPCError({ code: 'UNAUTHORIZED' });
     if (reviewer.basename && reviewer.basename !== input.basename) {
       throw new TRPCError({ code: 'FORBIDDEN', message: 'basename_mismatch' });
     }
+    if (!reviewer.githubLogin) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'reviewer_github_not_linked' });
+    }
+
+    const derivedStakeId = deriveStakeId(input.repoSlug, input.prId, reviewer.githubLogin);
+    const finalStakeId = input.stakeId ?? derivedStakeId;
 
     const { confirmStakeOnchainAndActivate } = await import('../services/stakeConfirmation');
     const result = await confirmStakeOnchainAndActivate({
-      stakeId: input.stakeId,
+      stakeId: finalStakeId,
+      reviewerAddress: ctx.walletAddress as `0x${string}`,
       reviewerBasename: input.basename,
       repoSlug: input.repoSlug,
       prId: input.prId,

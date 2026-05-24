@@ -1,9 +1,9 @@
-import { hashBasename } from '../chain/eas';
 import { writeStakeReview } from '../chain/gitledger';
 import { activatePendingStake } from './stakeResolution';
 
 export type ConfirmStakeInput = {
   stakeId: string;
+  reviewerAddress: `0x${string}`;
   reviewerBasename: string;
   repoSlug: string;
   prId: number;
@@ -22,9 +22,10 @@ export async function confirmStakeOnchainAndActivate(input: ConfirmStakeInput): 
   }
 
   const onchain = await writeStakeReview({
-    basenameHash: hashBasename(input.reviewerBasename),
+    stakeId: input.stakeId as `0x${string}`,
+    reviewer: input.reviewerAddress,
     repoSlug: input.repoSlug,
-    prId: BigInt(input.prId),
+    prId: input.prId,
     amountUsdc: BigInt(input.amountUsdc),
   });
 

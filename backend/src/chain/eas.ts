@@ -1,15 +1,10 @@
 import { encodeAbiParameters, keccak256, toBytes } from 'viem';
 
 export type EASAttestationPayload = {
-  basename: string;
-  repoSlug: string;
-  prId: bigint;
-  stakeAmount: bigint;
+  stakeId: `0x${string}`;
+  reviewer: `0x${string}`;
   verdict: 'ACTIVE' | 'CLEAN' | 'SLASHED';
-  reviewedAt: bigint;
-  resolvedAt: bigint;
-  reputationDelta: bigint;
-  repoLanguages: string;
+  prHash: `0x${string}`;
 };
 
 export function hashBasename(basename: string): `0x${string}` {
@@ -20,25 +15,19 @@ export function encodeEasPayload(payload: EASAttestationPayload): `0x${string}` 
   return encodeAbiParameters(
     [
       { type: 'bytes32' },
+      { type: 'address' },
       { type: 'string' },
-      { type: 'uint256' },
-      { type: 'uint256' },
-      { type: 'string' },
-      { type: 'uint256' },
-      { type: 'uint256' },
-      { type: 'uint256' },
-      { type: 'string' },
+      { type: 'bytes32' },
     ],
     [
-      hashBasename(payload.basename),
-      payload.repoSlug,
-      payload.prId,
-      payload.stakeAmount,
+      payload.stakeId,
+      payload.reviewer,
       payload.verdict,
-      payload.reviewedAt,
-      payload.resolvedAt,
-      payload.reputationDelta,
-      payload.repoLanguages,
+      payload.prHash,
     ],
   );
+}
+
+export function hashPr(repoSlug: string, prId: number): `0x${string}` {
+  return keccak256(toBytes(`${repoSlug}:${prId}`));
 }

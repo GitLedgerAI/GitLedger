@@ -108,8 +108,8 @@ describe('createApp routes', () => {
   });
 
   test('prompt-stake webhook rejects missing auth token config', async () => {
-    const original = process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
-    delete process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
+    const original = env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
+    (env as Record<string, unknown>).NOTIFIER_WEBHOOK_AUTH_TOKEN = undefined;
     const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock() });
 
     const res = await app.request('/webhooks/prompt-stake', {
@@ -125,7 +125,7 @@ describe('createApp routes', () => {
       }),
     });
 
-    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = original;
+    (env as Record<string, unknown>).NOTIFIER_WEBHOOK_AUTH_TOKEN = original;
     expect(res.status).toBe(503);
   });
 

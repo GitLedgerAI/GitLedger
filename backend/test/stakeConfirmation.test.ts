@@ -5,7 +5,8 @@ import type { ConfirmStakeInput } from '../src/services/stakeConfirmation';
 describe('stake confirmation input shape', () => {
   test('requires all fields for confirmation payload', () => {
     const payload: ConfirmStakeInput = {
-      stakeId: 'pending:repo:1:alice',
+      stakeId: '0x1111111111111111111111111111111111111111111111111111111111111111',
+      reviewerAddress: '0x1111111111111111111111111111111111111111',
       reviewerBasename: 'alice.base.eth',
       repoSlug: 'org/repo',
       prId: 1,

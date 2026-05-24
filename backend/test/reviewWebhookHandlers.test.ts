@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { handleApprovedReviewSubmitted } from '../src/services/reviewWebhookHandlers';
+import { deriveStakeId } from '../src/services/stakeId';
 
 describe('handleApprovedReviewSubmitted', () => {
   test('returns repo_not_enabled when repo is missing or disabled', async () => {
@@ -40,7 +41,7 @@ describe('handleApprovedReviewSubmitted', () => {
     expect(result).toEqual({ queued: true });
     expect(upsertedLogin).toBe('bob');
     expect(inserted).toEqual({
-      stakeId: 'pending:gitledger/repo:77:bob',
+      stakeId: deriveStakeId('gitledger/repo', 77, 'bob'),
       reviewerAddr: 'github:bob',
       repoId: 'repo-1',
       prId: 77,
