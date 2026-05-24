@@ -74,6 +74,8 @@ Status values: `"ACTIVE"` → `"CLEAN"` or `"SLASHED"`
 - Node.js ≥ 18
 - npm
 
+Note: Hardhat tests in this package are written for Solidity `0.8.24`.
+
 ### Install
 
 ```bash
