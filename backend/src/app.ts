@@ -17,6 +17,7 @@ import {
 } from './services/githubWebhook';
 import type { HealthReport } from './services/health';
 import { buildOAuthState, exchangeCodeForToken, fetchGithubLogin, parseAndVerifyState, upsertReviewerFromOAuth } from './services/githubOAuth';
+import { isGitHubAppInstalledForUser } from './services/githubApp';
 
 type RedisLike = {
   get: (key: string) => Promise<string | null>;
@@ -135,6 +136,25 @@ export function createApp(options: AppOptions) {
     if (parsed.wallet) redirectUrl.searchParams.set('wallet', parsed.wallet);
     redirectUrl.searchParams.set('github_login', githubLogin);
     return c.redirect(redirectUrl.toString());
+  });
+
+  app.get('/auth/github/install-status', async (c) => {
+    const githubLogin = c.req.query('github_login') ?? '';
+    if (!githubLogin) return c.json({ error: 'missing_github_login' }, 400);
+
+    try {
+      const installed = await isGitHubAppInstalledForUser(githubLogin);
+      return c.json({
+        ok: true,
+        githubLogin,
+        installed,
+        installUrl: 'https://github.com/apps/gitledger/installations/new',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[auth] install-status check failed', { githubLogin, message });
+      return c.json({ ok: false, githubLogin, error: 'install_status_check_failed' }, 502);
+    }
   });
 
   app.get('/health', async (c) => {

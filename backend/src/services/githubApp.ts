@@ -75,3 +75,22 @@ export async function getInstallationRepositories(installationId: number): Promi
   const data = (await res.json()) as { repositories?: Array<{ id: number; full_name: string }> };
   return data.repositories ?? [];
 }
+
+export async function isGitHubAppInstalledForUser(githubLogin: string): Promise<boolean> {
+  const jwt = createGitHubAppJwt();
+  const encodedLogin = encodeURIComponent(githubLogin);
+  const res = await fetch(`https://api.github.com/users/${encodedLogin}/installation`, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${jwt}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'GitLedgerAI',
+    },
+  });
+
+  if (res.status === 404) return false;
+  if (res.ok) return true;
+
+  const body = await res.text();
+  throw new Error(`failed to check user installation (${res.status}): ${body}`);
+}
