@@ -86,7 +86,7 @@ export function createApp(options: AppOptions) {
   app.get('/auth/github', async (c) => {
     const wallet = c.req.query('wallet') ?? '';
     const callback = c.req.query('callback') ?? '';
-    if (!wallet || !callback) return c.json({ error: 'missing_wallet_or_callback' }, 400);
+    if (!callback) return c.json({ error: 'missing_callback' }, 400);
 
     const state = buildOAuthState(wallet, callback);
     const params = new URLSearchParams({
@@ -110,10 +110,10 @@ export function createApp(options: AppOptions) {
     const githubLogin = await fetchGithubLogin(token);
     if (!githubLogin) return c.json({ error: 'github_user_fetch_failed' }, 400);
 
-    await upsertReviewerFromOAuth(parsed.wallet, githubLogin);
+    if (parsed.wallet) await upsertReviewerFromOAuth(parsed.wallet, githubLogin);
 
     const redirectUrl = new URL(parsed.callback);
-    redirectUrl.searchParams.set('wallet', parsed.wallet);
+    if (parsed.wallet) redirectUrl.searchParams.set('wallet', parsed.wallet);
     redirectUrl.searchParams.set('github_login', githubLogin);
     return c.redirect(redirectUrl.toString());
   });

@@ -22,7 +22,7 @@ export function parseAndVerifyState(state: string): { wallet: string; callback: 
   if (signState(b64) !== sig) return null;
   try {
     const payload = JSON.parse(Buffer.from(b64, 'base64url').toString('utf8')) as { wallet: string; callback: string };
-    if (!payload.wallet || !payload.callback) return null;
+    if (!payload.callback) return null;
     return payload;
   } catch {
     return null;
