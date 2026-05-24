@@ -21,8 +21,8 @@ export default function MyDashboard() {
 
   const [tab, setTab] = useState<'active' | 'history'>('active');
 
-  const active = stakes.filter(s => s.state === 'active');
-  const past   = stakes.filter(s => s.state !== 'active');
+  const active = stakes.filter(s => s.state === 'active' || s.state === 'pending_stake');
+  const past   = stakes.filter(s => s.state === 'clean' || s.state === 'slashed');
 
   const totalActiveStake = active.reduce((sum, s) => sum + s.amountUsdc, 0);
   const totalYield = past.filter(s => s.state === 'clean').reduce((sum, s) => sum + (s.yieldEarned ?? 0), 0);

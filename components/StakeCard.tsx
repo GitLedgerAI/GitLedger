@@ -10,7 +10,7 @@ interface StakeCardProps {
 
 export default function StakeCard({ stake, showActions = false }: StakeCardProps) {
   const days = daysRemaining(stake.windowEndsAt);
-  const verdictMap = { active: 'ACTIVE', clean: 'CLEAN', slashed: 'SLASHED' } as const;
+  const verdictMap = { pending_stake: 'ACTIVE', active: 'ACTIVE', clean: 'CLEAN', slashed: 'SLASHED' } as const;
   const verdict = verdictMap[stake.state];
 
   return (
@@ -25,6 +25,9 @@ export default function StakeCard({ stake, showActions = false }: StakeCardProps
         </p>
         <div className="flex items-center gap-3 mt-1">
           <span className="text-[10px] font-mono text-white/25">Staked {formatDate(stake.stakedAt)}</span>
+          {stake.state === 'pending_stake' && (
+            <span className="text-[10px] font-mono text-amber-400/70">Awaiting on-chain confirmation</span>
+          )}
           {stake.state === 'active' && (
             <span className="text-[10px] font-mono text-amber-400/70">{days}d remaining</span>
           )}
@@ -39,7 +42,7 @@ export default function StakeCard({ stake, showActions = false }: StakeCardProps
       <div className="flex flex-col items-end gap-2 shrink-0">
         <VerdictBadge verdict={verdict} size="sm" />
         <span className="text-sm font-mono font-bold text-white/70">{formatUsdc(stake.amountUsdc)}</span>
-        {showActions && stake.state === 'active' && (
+        {showActions && (stake.state === 'active' || stake.state === 'pending_stake') && (
           <Link
             href={`/dashboard/stake/${stake.prId}?repo=${encodeURIComponent(stake.repoSlug ?? '')}`}
             className="text-[9px] font-mono tracking-widest text-white/25 hover:text-white/55 uppercase transition-colors duration-200"

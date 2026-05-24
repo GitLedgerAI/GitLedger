@@ -1,5 +1,5 @@
 export type Verdict = 'ACTIVE' | 'CLEAN' | 'SLASHED';
-export type StakeState = 'active' | 'clean' | 'slashed';
+export type StakeState = 'pending_stake' | 'active' | 'clean' | 'slashed';
 export type SortKey = 'score' | 'yield' | 'accuracy' | 'stakes';
 
 export interface Reviewer {
