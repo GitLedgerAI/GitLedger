@@ -130,9 +130,7 @@ describe('createApp routes', () => {
   });
 
   test('prompt-stake webhook rejects invalid auth', async () => {
-    const original = process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
-    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = 'token-abc';
-    const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock() });
+    const app = createApp({ githubWebhookSecret: secret, redis: createRedisMock(), notifierWebhookAuthToken: 'token-abc' });
 
     const res = await app.request('/webhooks/prompt-stake', {
       method: 'POST',
@@ -147,18 +145,16 @@ describe('createApp routes', () => {
       }),
     });
 
-    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = original;
     expect(res.status).toBe(401);
   });
 
   test('prompt-stake webhook accepts valid payload + auth', async () => {
-    const original = process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
-    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = 'token-abc';
     let saved = false;
 
     const app = createApp({
       githubWebhookSecret: secret,
       redis: createRedisMock(),
+      notifierWebhookAuthToken: 'token-abc',
       onPromptStakeNotification: async () => {
         saved = true;
       },
@@ -177,7 +173,6 @@ describe('createApp routes', () => {
       }),
     });
 
-    process.env.NOTIFIER_WEBHOOK_AUTH_TOKEN = original;
     expect(res.status).toBe(200);
     expect(saved).toBe(true);
   });

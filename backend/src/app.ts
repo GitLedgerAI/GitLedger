@@ -26,6 +26,7 @@ type RedisLike = {
 type AppOptions = {
   githubWebhookSecret: string;
   redis: RedisLike;
+  notifierWebhookAuthToken?: string;
   minStakeUsdc?: number;
   healthCheck?: () => Promise<HealthReport>;
   onApprovedReviewSubmitted?: (input: {
@@ -240,9 +241,10 @@ export function createApp(options: AppOptions) {
   });
 
   app.post('/webhooks/prompt-stake', async (c) => {
-    if (!env.NOTIFIER_WEBHOOK_AUTH_TOKEN) return c.json({ error: 'not_configured' }, 503);
+    const notifierToken = options.notifierWebhookAuthToken ?? env.NOTIFIER_WEBHOOK_AUTH_TOKEN;
+    if (!notifierToken) return c.json({ error: 'not_configured' }, 503);
     const auth = c.req.header('authorization') ?? '';
-    const expected = `Bearer ${env.NOTIFIER_WEBHOOK_AUTH_TOKEN}`;
+    const expected = `Bearer ${notifierToken}`;
     if (auth !== expected) return c.json({ error: 'unauthorized' }, 401);
 
     let body: unknown;
