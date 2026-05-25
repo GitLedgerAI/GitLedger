@@ -18,6 +18,7 @@ import {
   verifyGitHubSignature,
 } from './services/githubWebhook';
 import type { HealthReport } from './services/health';
+import { getProtocolValueReport } from './services/protocolValue';
 import { buildOAuthState, exchangeCodeForToken, fetchGithubLogin, parseAndVerifyState, upsertReviewerFromOAuth } from './services/githubOAuth';
 import { isGitHubAppInstalledForUser } from './services/githubApp';
 
@@ -185,6 +186,17 @@ export function createApp(options: AppOptions) {
     if (!options.healthCheck) return c.json({ ok: true, service: 'gitledger-backend' });
     const report = await options.healthCheck();
     return c.json(report, report.ok ? 200 : 503);
+  });
+
+  app.get('/protocol/value', async (c) => {
+    try {
+      const report = await getProtocolValueReport();
+      return c.json({ ok: true, ...report });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[protocol-value] report failed', { error: message });
+      return c.json({ ok: false, error: 'protocol_value_failed', message }, 502);
+    }
   });
 
   app.get('/internal/prompt-stake-jobs', async (c) => {
