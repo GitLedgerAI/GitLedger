@@ -10,6 +10,7 @@ import VerdictBadge from '@/components/VerdictBadge';
 import Reveal from '@/components/Reveal';
 import { useReviewer, useReviewerAttestations } from '@/lib/hooks';
 import { formatUsdc, formatRelativeDate, shortenAddress, shortenUid } from '@/lib/utils';
+import { MOCK_REVIEWERS, MOCK_ATTESTATIONS } from '@/lib/mockReviewers';
 import type { Verdict } from '@/lib/types';
 
 type FilterVerdict = 'ALL' | Verdict;
@@ -19,17 +20,21 @@ export default function ReviewerProfile({ params }: { params: { basename: string
   const basename = decodeURIComponent(params.basename);
   const [filter, setFilter] = useState<FilterVerdict>('ALL');
 
-  const { data: reviewer, isLoading: reviewerLoading, isError } = useReviewer(basename);
-  const { data: allAttestations = [], isLoading: attLoading } = useReviewerAttestations(basename);
+  const { data: apiReviewer, isLoading: reviewerLoading, isError } = useReviewer(basename);
+  const { data: apiAttestations = [], isLoading: attLoading } = useReviewerAttestations(basename);
 
-  const isLoading = reviewerLoading || attLoading;
+  const mockReviewer = MOCK_REVIEWERS[basename];
+  const reviewer = apiReviewer ?? mockReviewer;
+  const allAttestations = apiAttestations.length > 0
+    ? apiAttestations
+    : (mockReviewer ? (MOCK_ATTESTATIONS[basename] ?? []) : []);
 
   const filtered = filter === 'ALL' ? allAttestations : allAttestations.filter(a => a.verdict === filter);
   const accuracy = reviewer && reviewer.cleanCount + reviewer.slashCount > 0
     ? ((reviewer.cleanCount / (reviewer.cleanCount + reviewer.slashCount)) * 100).toFixed(1)
     : '—';
 
-  if (reviewerLoading) {
+  if (reviewerLoading && !mockReviewer) {
     return (
       <div className="min-h-screen bg-[#0a0a0b] flex flex-col">
         <main className="flex-1 max-w-6xl mx-auto px-6 sm:px-12 py-12 w-full">

@@ -16,3 +16,10 @@ FRONTEND.md
 misc/
 contract/artifacts/
 contract/cache/
+
+# Videos (demo recordings, screen captures)
+*.mp4
+*.mov
+*.webm
+*.mkv
+*.avi

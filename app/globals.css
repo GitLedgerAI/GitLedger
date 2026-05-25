@@ -71,3 +71,48 @@ body::after {
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: #0a0a0b; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+/* ── Print / PDF export ── */
+@media print {
+  @page { margin: 14mm 10mm; size: A4; }
+
+  .print-hide { display: none !important; }
+
+  html, body {
+    background: #0a0a0b !important;
+    color: #fff !important;
+    overflow: visible !important;
+  }
+  body::after { display: none !important; } /* noise grain */
+
+  /* Force-paint dark theme backgrounds */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Neutralize framer-motion inline opacity/transform so off-screen
+     sections aren't blank in the printed output */
+  [style*="opacity"] { opacity: 1 !important; }
+  [style*="transform"] { transform: none !important; }
+
+  /* Tighten layout for print */
+  main { padding: 0 !important; }
+  main > div { padding-top: 12mm !important; padding-bottom: 8mm !important; max-width: 100% !important; }
+
+  /* Keep sections, tables, and code blocks from splitting awkwardly */
+  section { break-inside: avoid; page-break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
+  table, pre { break-inside: auto; page-break-inside: auto; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+
+  /* Wrap long code lines so nothing gets clipped off the page */
+  pre, code {
+    white-space: pre-wrap !important;
+    word-break: break-word;
+    font-size: 10.5px !important;
+    line-height: 1.55 !important;
+  }
+
+  a { color: inherit !important; text-decoration: none !important; }
+}
