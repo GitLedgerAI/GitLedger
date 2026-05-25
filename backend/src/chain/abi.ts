@@ -83,6 +83,13 @@ export const gitLedgerAbi = [
     inputs: [],
     outputs: [{ name: '', type: 'uint256' }],
   },
+  {
+    type: 'function',
+    name: 'previewYield',
+    stateMutability: 'view',
+    inputs: [{ name: 'stakeId', type: 'bytes32' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
 ] as const;
 
 // Minimal ERC20 ABI for balanceOf + decimals + symbol

@@ -134,3 +134,17 @@ export async function writeReleaseYield(params: {
 export function derivePendingStakeId(reviewerAddress: `0x${string}`, prId: bigint): `0x${string}` {
   return keccak256(toHex(`${reviewerAddress}:${prId}`));
 }
+
+/**
+ * Read the contract's pro-rata yield computation for a stake.
+ * Returns yield in 6-dec USDC micro-units.
+ */
+export async function readPreviewYield(stakeId: `0x${string}`): Promise<bigint> {
+  const result = await basePublicClient.readContract({
+    address: contractAddress,
+    abi: gitLedgerAbi,
+    functionName: 'previewYield',
+    args: [stakeId],
+  });
+  return result as bigint;
+}

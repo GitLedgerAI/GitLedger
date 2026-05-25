@@ -14,6 +14,7 @@ import { listPromptStakeJobs } from './services/internalJobs';
 import { configurePromptStakeQueue, setPromptStakePublisher } from './services/queue';
 import { handleApprovedReviewSubmitted } from './services/reviewWebhookHandlers';
 import { handleMergedPullRequest } from './services/hotfixWebhookHandlers';
+import { resolveDueStakes } from './services/oracleResolver';
 import { activatePendingStake } from './services/stakeResolution';
 
 await runMigrations();
@@ -73,6 +74,33 @@ const app = createApp({
     });
   },
 });
+
+// ── Background oracle resolver ──────────────────────────────────────────────
+// Periodically scan for stakes whose 30-day window has elapsed and resolve
+// them onchain (slash if hotfix detected, else release yield). Set the
+// interval via env ORACLE_POLL_INTERVAL_SECONDS (default 86400 = once/day).
+const oracleIntervalMs = env.ORACLE_POLL_INTERVAL_SECONDS * 1000;
+console.info(`[oracle-scheduler] starting; interval=${env.ORACLE_POLL_INTERVAL_SECONDS}s`);
+let oracleTickRunning = false;
+const oracleTick = async () => {
+  if (oracleTickRunning) {
+    console.warn('[oracle-scheduler] previous tick still running; skipping');
+    return;
+  }
+  oracleTickRunning = true;
+  try {
+    await resolveDueStakes();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[oracle-scheduler] tick crashed', { error: message });
+  } finally {
+    oracleTickRunning = false;
+  }
+};
+// Fire once on boot so a freshly-started backend doesn't sit idle for a full
+// interval before catching up on overdue stakes.
+void oracleTick();
+setInterval(oracleTick, oracleIntervalMs);
 
 export default {
   port: env.PORT,

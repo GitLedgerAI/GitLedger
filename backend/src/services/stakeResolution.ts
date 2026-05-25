@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client';
-import { stakes } from '../db/schema';
+import { repos, stakes } from '../db/schema';
+import { recordStakeActivated } from './lifecycle';
 
 export type ActivatePendingStakeInput = {
   stakeId: string;
@@ -14,6 +15,10 @@ type PendingStakeRecord = {
   id: string;
   amountUsdc: number;
   stakedAt: Date | null;
+  reviewerAddr: string;
+  prId: number;
+  prTitle: string | null;
+  repoSlug: string | null;
 };
 
 type Dependencies = {
@@ -25,6 +30,7 @@ type Dependencies = {
     amountUsdc: number;
     windowEndsAt: Date;
   }) => Promise<void>;
+  recordActivated: typeof recordStakeActivated;
 };
 
 const defaultDeps: Dependencies = {
@@ -34,8 +40,13 @@ const defaultDeps: Dependencies = {
         id: stakes.id,
         amountUsdc: stakes.amountUsdc,
         stakedAt: stakes.stakedAt,
+        reviewerAddr: stakes.reviewerAddr,
+        prId: stakes.prId,
+        prTitle: stakes.prTitle,
+        repoSlug: repos.slug,
       })
       .from(stakes)
+      .leftJoin(repos, eq(stakes.repoId, repos.id))
       .where(and(eq(stakes.stakeId, stakeId), eq(stakes.state, 'pending_stake')))
       .limit(1);
     return rows[0] ?? null;
@@ -53,6 +64,7 @@ const defaultDeps: Dependencies = {
       })
       .where(eq(stakes.stakeId, stakeId));
   },
+  recordActivated: recordStakeActivated,
 };
 
 export async function activatePendingStake(
@@ -107,6 +119,36 @@ export async function activatePendingStake(
     stakeId: input.stakeId,
     windowEndsAt: windowEndsAt.toISOString(),
   });
+
+  if (pending.repoSlug && pending.reviewerAddr) {
+    try {
+      await deps.recordActivated({
+        stakeId: input.stakeId,
+        reviewerAddr: pending.reviewerAddr,
+        repoSlug: pending.repoSlug,
+        prId: pending.prId,
+        prTitle: pending.prTitle,
+        amountUsdc: baseAmount,
+        attestationUid: input.attestationUid,
+        txHashStake: input.txHashStake,
+        windowEndsAt,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[stake-resolve] lifecycle recordStakeActivated failed (state row already flipped)', {
+        stakeId: input.stakeId,
+        error: message,
+      });
+      // Don't throw — the stake IS active onchain and in stakes table. Lifecycle
+      // side-effects are best-effort and can be backfilled.
+    }
+  } else {
+    console.warn('[stake-resolve] missing repoSlug/reviewerAddr — skipping lifecycle write', {
+      stakeId: input.stakeId,
+      hasRepoSlug: !!pending.repoSlug,
+      hasReviewerAddr: !!pending.reviewerAddr,
+    });
+  }
 
   return { ok: true };
 }

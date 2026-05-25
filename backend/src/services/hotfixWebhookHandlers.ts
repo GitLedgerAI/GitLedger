@@ -4,6 +4,7 @@ import { repos, reviewers, stakes } from '../db/schema';
 import { env } from '../config/env';
 import { writeSlashReview } from '../chain/gitledger';
 import { hotfixMatchesStakedPr, isHotfixTitle } from './hotfixDetection';
+import { recordStakeSlashed } from './lifecycle';
 
 export type MergedHotfixInput = {
   repoSlug: string;
@@ -18,6 +19,8 @@ type ActiveStakeRow = {
   stakeId: string;
   reviewerAddr: string;
   prId: number;
+  amountUsdc: number;
+  attestationUid: string | null;
 };
 
 type Dependencies = {
@@ -25,7 +28,15 @@ type Dependencies = {
   resolveReporterAddress: (reporterLogin: string | null | undefined) => Promise<`0x${string}`>;
   matchesStakedPr: typeof hotfixMatchesStakedPr;
   slashReview: typeof writeSlashReview;
-  markSlashed: (stakeId: string, txHash: string) => Promise<void>;
+  markSlashed: (params: {
+    stakeId: string;
+    reviewerAddr: string;
+    repoSlug: string;
+    prId: number;
+    amountUsdc: number;
+    attestationUid: string | null;
+    txHash: string;
+  }) => Promise<void>;
 };
 
 const defaultDeps: Dependencies = {
@@ -36,6 +47,8 @@ const defaultDeps: Dependencies = {
         stakeId: stakes.stakeId,
         reviewerAddr: stakes.reviewerAddr,
         prId: stakes.prId,
+        amountUsdc: stakes.amountUsdc,
+        attestationUid: stakes.attestationUid,
         windowEndsAt: stakes.windowEndsAt,
       })
       .from(stakes)
@@ -52,7 +65,13 @@ const defaultDeps: Dependencies = {
         windowEndsAt: r.windowEndsAt?.toISOString?.() ?? null,
       })),
     });
-    return rows.map((r) => ({ stakeId: r.stakeId, reviewerAddr: r.reviewerAddr, prId: r.prId }));
+    return rows.map((r) => ({
+      stakeId: r.stakeId,
+      reviewerAddr: r.reviewerAddr,
+      prId: r.prId,
+      amountUsdc: r.amountUsdc,
+      attestationUid: r.attestationUid,
+    }));
   },
   resolveReporterAddress: async (reporterLogin) => {
     if (reporterLogin) {
@@ -80,11 +99,16 @@ const defaultDeps: Dependencies = {
   },
   matchesStakedPr: hotfixMatchesStakedPr,
   slashReview: writeSlashReview,
-  markSlashed: async (stakeId: string, txHash: string) => {
-    await db
-      .update(stakes)
-      .set({ state: 'slashed', txHashResolve: txHash, resolvedAt: new Date() })
-      .where(eq(stakes.stakeId, stakeId));
+  markSlashed: async ({ stakeId, reviewerAddr, repoSlug, prId, amountUsdc, attestationUid, txHash }) => {
+    await recordStakeSlashed({
+      stakeId,
+      reviewerAddr,
+      repoSlug,
+      prId,
+      amountUsdc,
+      attestationUid: attestationUid ?? '',
+      txHashResolve: txHash,
+    });
   },
 };
 
@@ -213,8 +237,16 @@ export async function handleMergedPullRequest(
       txHash: result.txHash,
     });
 
-    await deps.markSlashed(stake.stakeId, result.txHash);
-    console.log('[hotfix] DB row marked slashed', {
+    await deps.markSlashed({
+      stakeId: stake.stakeId,
+      reviewerAddr: stake.reviewerAddr,
+      repoSlug: input.repoSlug,
+      prId: stake.prId,
+      amountUsdc: stake.amountUsdc,
+      attestationUid: stake.attestationUid,
+      txHash: result.txHash,
+    });
+    console.log('[hotfix] DB row marked slashed (lifecycle wrote attestation + reviewer rollup)', {
       stakeId: stake.stakeId,
       txHash: result.txHash,
     });

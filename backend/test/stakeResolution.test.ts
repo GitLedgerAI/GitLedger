@@ -12,6 +12,7 @@ describe('activatePendingStake', () => {
       {
         findPendingStakeByStakeId: async () => null,
         activateStake: async () => {},
+        recordActivated: async () => {},
       },
     );
 
@@ -20,6 +21,7 @@ describe('activatePendingStake', () => {
 
   test('activates pending stake with tx hash and attestation uid', async () => {
     let updated: Record<string, unknown> | null = null;
+    let activatedInput: Record<string, unknown> | null = null;
 
     const result = await activatePendingStake(
       {
@@ -32,9 +34,16 @@ describe('activatePendingStake', () => {
           id: 'stake-row-1',
           amountUsdc: 12000000,
           stakedAt: null,
+          reviewerAddr: '0xreviewer',
+          prId: 77,
+          prTitle: 'feat: a thing',
+          repoSlug: 'gitledger/repo',
         }),
         activateStake: async (params) => {
           updated = params as unknown as Record<string, unknown>;
+        },
+        recordActivated: async (params) => {
+          activatedInput = params as unknown as Record<string, unknown>;
         },
       },
     );
@@ -45,5 +54,11 @@ describe('activatePendingStake', () => {
     expect(updated?.attestationUid).toBe('0xattuid');
     expect(updated?.amountUsdc).toBe(12000000);
     expect(updated?.windowEndsAt).toBeInstanceOf(Date);
+
+    expect(activatedInput?.stakeId).toBe('pending:gitledger/repo:77:bob');
+    expect(activatedInput?.reviewerAddr).toBe('0xreviewer');
+    expect(activatedInput?.repoSlug).toBe('gitledger/repo');
+    expect(activatedInput?.prId).toBe(77);
+    expect(activatedInput?.attestationUid).toBe('0xattuid');
   });
 });
