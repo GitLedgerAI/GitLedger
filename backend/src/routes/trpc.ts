@@ -6,6 +6,12 @@ import { attestations, promptStakeJobs, repos, reviewers, stakes } from '../db/s
 import type { TRPCContext, UserRole } from '../trpc/context';
 import { reviewerExists } from '../trpc/context';
 import { getLanguages, getPullRequest, getRepo } from '../services/githubApi';
+import { encodeEasPayload, hashPr } from '../chain/eas';
+import { env } from '../config/env';
+
+const BYTES32_HEX = /^0x[0-9a-fA-F]{64}$/;
+const STAKE_WINDOW_SECONDS = 30 * 24 * 60 * 60;
+const STAKE_YIELD_BPS = 500;
 
 const t = initTRPC.context<TRPCContext>().create();
 
@@ -160,24 +166,76 @@ const stakeRouter = t.router({
     };
   }),
 
-  submit: protectedProcedure.input(z.object({ basename: z.string().optional(), repoSlug: z.string(), prId: z.number().int().positive(), amountUsdc: z.number().int().min(500_000), stakeId: z.string() })).mutation(async ({ input, ctx }) => {
-    const reviewer = await db.query.reviewers.findFirst({ where: eq(reviewers.address, ctx.walletAddress!) });
-    if (!reviewer) throw new TRPCError({ code: 'UNAUTHORIZED' });
+  prepare: protectedProcedure
+    .input(z.object({
+      stakeId: z.string().regex(BYTES32_HEX, 'stakeId must be 32-byte hex'),
+      repoSlug: z.string().min(1),
+      prId: z.number().int().positive(),
+      amountUsdc: z.number().int().min(500_000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const reviewerAddr = ctx.walletAddress!;
+      const reviewer = await db.query.reviewers.findFirst({ where: eq(reviewers.address, reviewerAddr) });
+      if (!reviewer) throw new TRPCError({ code: 'UNAUTHORIZED' });
 
-    const { confirmStakeOnchainAndActivate } = await import('../services/stakeConfirmation');
-    const result = await confirmStakeOnchainAndActivate({
-      stakeId: input.stakeId,
-      reviewerAddress: ctx.walletAddress as `0x${string}`,
-      reviewerBasename: input.basename ?? reviewer.basename ?? '',
-      repoSlug: input.repoSlug,
-      prId: input.prId,
-      amountUsdc: input.amountUsdc,
-    });
-    if (!result.ok || !result.txHash || !result.attestationUid) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: result.reason ?? 'stake_submit_failed' });
-    }
-    return { txHash: result.txHash, attestationUid: result.attestationUid };
-  }),
+      const repoRow = await db.query.repos.findFirst({ where: eq(repos.slug, input.repoSlug) });
+      const pr = await getPullRequest(input.repoSlug, input.prId);
+
+      await db
+        .insert(stakes)
+        .values({
+          stakeId: input.stakeId,
+          reviewerAddr,
+          repoId: repoRow?.id,
+          prId: input.prId,
+          prTitle: pr?.prTitle,
+          amountUsdc: input.amountUsdc,
+          state: 'pending_stake',
+        })
+        .onConflictDoUpdate({
+          target: stakes.stakeId,
+          set: {
+            reviewerAddr,
+            repoId: repoRow?.id,
+            prId: input.prId,
+            prTitle: pr?.prTitle,
+            amountUsdc: input.amountUsdc,
+            state: 'pending_stake',
+          },
+        });
+
+      const schemaData = encodeEasPayload({
+        stakeId: input.stakeId as `0x${string}`,
+        reviewer: reviewerAddr as `0x${string}`,
+        verdict: 'ACTIVE',
+        prHash: hashPr(input.repoSlug, input.prId),
+      });
+
+      return {
+        contractAddress: env.GITLEDGER_CONTRACT as `0x${string}`,
+        windowDurationSeconds: STAKE_WINDOW_SECONDS,
+        yieldBps: STAKE_YIELD_BPS,
+        schemaData,
+      };
+    }),
+
+  submit: protectedProcedure
+    .input(z.object({
+      stakeId: z.string().regex(BYTES32_HEX, 'stakeId must be 32-byte hex'),
+      txHash: z.string().regex(BYTES32_HEX, 'txHash must be 32-byte hex'),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { verifyAndActivateStake } = await import('../services/stakeConfirmation');
+      const result = await verifyAndActivateStake({
+        stakeId: input.stakeId,
+        txHash: input.txHash as `0x${string}`,
+        reviewerAddress: ctx.walletAddress as `0x${string}`,
+      });
+      if (!result.ok) {
+        throw new TRPCError({ code: result.code, message: result.reason });
+      }
+      return { txHash: result.txHash, attestationUid: result.attestationUid };
+    }),
 });
 
 const repoRouter = t.router({

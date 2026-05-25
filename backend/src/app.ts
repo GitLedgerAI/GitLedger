@@ -52,14 +52,6 @@ type AppOptions = {
     attestationUid: string;
     amountUsdc?: number;
   }) => Promise<{ ok: boolean; reason?: string }>;
-  onConfirmStake?: (input: {
-    stakeId: string;
-    reviewerAddress: `0x${string}`;
-    reviewerBasename?: string;
-    repoSlug: string;
-    prId: number;
-    amountUsdc: number;
-  }) => Promise<{ ok: boolean; reason?: string; txHash?: string; onchainStakeId?: string | null; attestationUid?: string | null }>;
   listPromptStakeJobs?: (limit: number, status?: 'received' | 'processed' | 'failed') => Promise<unknown[]>;
   onPromptStakeNotification?: (input: {
     reviewerLogin: string;
@@ -209,31 +201,6 @@ export function createApp(options: AppOptions) {
       txHashStake: body.txHashStake ?? '',
       attestationUid: body.attestationUid ?? '',
       amountUsdc: body.amountUsdc,
-    });
-
-    if (!result.ok) return c.json(result, 400);
-    return c.json(result, 200);
-  });
-
-  app.post('/internal/stakes/confirm', async (c) => {
-    if (!options.onConfirmStake) return c.json({ error: 'not_configured' }, 503);
-    if (!requireInternalAuth(c.req.header('authorization'))) return c.json({ error: 'unauthorized' }, 401);
-
-    const body = (await c.req.json()) as {
-      stakeId?: string;
-      reviewerAddress?: `0x${string}`;
-      reviewerBasename?: string;
-      repoSlug?: string;
-      prId?: number;
-      amountUsdc?: number;
-    };
-    const result = await options.onConfirmStake({
-      stakeId: body.stakeId ?? '',
-      reviewerAddress: (body.reviewerAddress ?? '0x0000000000000000000000000000000000000000') as `0x${string}`,
-      reviewerBasename: body.reviewerBasename ?? '',
-      repoSlug: body.repoSlug ?? '',
-      prId: body.prId ?? 0,
-      amountUsdc: body.amountUsdc ?? 0,
     });
 
     if (!result.ok) return c.json(result, 400);

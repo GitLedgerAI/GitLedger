@@ -113,17 +113,38 @@ export function getMyStakes(address: string): Promise<Stake[]> {
   return trpcQuery<Stake[]>('stake.getMyStakes', { address }, walletHeader(address));
 }
 
-export function submitStake(params: {
+export function prepareStake(params: {
+  stakeId: string;
   repoSlug: string;
   prId: number;
   amountUsdc: number;
   walletAddress: string;
+}): Promise<{
+  contractAddress: `0x${string}`;
+  windowDurationSeconds: number;
+  yieldBps: number;
+  schemaData: `0x${string}`;
+}> {
+  return trpcMutate(
+    'stake.prepare',
+    {
+      stakeId: params.stakeId,
+      repoSlug: params.repoSlug,
+      prId: params.prId,
+      amountUsdc: params.amountUsdc,
+    },
+    walletHeader(params.walletAddress),
+  );
+}
+
+export function submitStake(params: {
   stakeId: string;
-  basename?: string;
+  txHash: string;
+  walletAddress: string;
 }): Promise<{ attestationUid: string; txHash: string }> {
   return trpcMutate(
     'stake.submit',
-    { repoSlug: params.repoSlug, prId: params.prId, amountUsdc: params.amountUsdc, stakeId: params.stakeId, basename: params.basename ?? '' },
+    { stakeId: params.stakeId, txHash: params.txHash },
     walletHeader(params.walletAddress),
   );
 }

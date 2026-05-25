@@ -4,20 +4,20 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useReadContract, useWriteContract, usePublicClient } from 'wagmi';
 
 import Footer from '@/components/Footer';
 import VerdictBadge from '@/components/VerdictBadge';
 import { useAuth } from '@/lib/auth-context';
-import { submitStake } from '@/lib/api';
+import { prepareStake, submitStake } from '@/lib/api';
 import { formatUsdc, shortenAddress } from '@/lib/utils';
 import { useReviewer, usePrDetails } from '@/lib/hooks';
-import { USDC_ADDRESS, USDC_ABI, GITLEDGER_CONTRACT, MAX_UINT256 } from '@/lib/contracts';
+import { USDC_ADDRESS, USDC_ABI, GITLEDGER_CONTRACT, GITLEDGER_ABI, MAX_UINT256 } from '@/lib/contracts';
 
 const QUICK_PICKS = [25, 50, 100, 500];
 
 type Step = 'form' | 'confirm' | 'signing' | 'success';
-type SigningPhase = 'approving' | 'submitting';
+type SigningPhase = 'approving' | 'staking' | 'recording';
 
 function StakeFlowInner({ prId }: { prId: number }) {
   const searchParams = useSearchParams();
@@ -53,45 +53,64 @@ function StakeFlowInner({ prId }: { prId: number }) {
   });
 
   const { writeContractAsync } = useWriteContract();
-  const [approveTxHash, setApproveTxHash] = useState<`0x${string}` | undefined>();
-  useWaitForTransactionReceipt({ hash: approveTxHash });
+  const publicClient = usePublicClient();
 
   async function handleConfirmStake() {
     if (!isWalletConnected || !isFullyRegistered) { openModal(); return; }
     if (!walletAddress) return;
+    if (!publicClient) { setSignError('Wallet not ready. Reconnect and retry.'); return; }
     setSignError('');
     setStep('signing');
     try {
       if ((allowance ?? 0n) < amountWei) {
         setSigningPhase('approving');
-        const hash = await writeContractAsync({
+        const approveHash = await writeContractAsync({
           address: USDC_ADDRESS,
           abi: USDC_ABI,
           functionName: 'approve',
           args: [GITLEDGER_CONTRACT, MAX_UINT256],
         });
-        setApproveTxHash(hash);
-        // Poll allowance until it reflects the approval (a couple seconds on Base).
-        for (let i = 0; i < 30; i++) {
-          await new Promise((r) => setTimeout(r, 1000));
-          const { data: next } = await refetchAllowance();
-          if ((next ?? 0n) >= amountWei) break;
-        }
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        await refetchAllowance();
       }
-      setSigningPhase('submitting');
-      const result = await submitStake({
+
+      setSigningPhase('staking');
+      const prep = await prepareStake({
+        stakeId,
         repoSlug: pr?.repoSlug ?? repoSlug,
         prId: pr?.prId ?? prId,
         amountUsdc: Number(amountWei),
         walletAddress,
+      });
+      const stakeTxHash = await writeContractAsync({
+        address: prep.contractAddress,
+        abi: GITLEDGER_ABI,
+        functionName: 'stakeReview',
+        args: [
+          stakeId as `0x${string}`,
+          walletAddress as `0x${string}`,
+          amountWei,
+          BigInt(prep.windowDurationSeconds),
+          prep.yieldBps,
+          prep.schemaData,
+        ],
+      });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: stakeTxHash });
+      if (receipt.status !== 'success') {
+        throw new Error('Stake transaction reverted on-chain.');
+      }
+
+      setSigningPhase('recording');
+      const result = await submitStake({
         stakeId,
-        basename: githubSession?.basename ?? reviewer?.basename ?? '',
+        txHash: stakeTxHash,
+        walletAddress,
       });
       setTxHash(result.txHash);
       setStep('success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Submission failed. Go back and try again.';
-      setSignError(msg.includes('User rejected') ? 'You rejected the approval in your wallet.' : msg);
+      setSignError(msg.includes('User rejected') ? 'You rejected the transaction in your wallet.' : msg);
       setStep('confirm');
     }
   }
@@ -232,7 +251,11 @@ function StakeFlowInner({ prId }: { prId: number }) {
                   {step === 'signing' ? (
                     <>
                       <span className="w-3 h-3 border border-[#0a0a0b]/40 border-t-[#0a0a0b] rounded-full animate-spin" />
-                      {signingPhase === 'approving' ? 'Approve USDC in wallet…' : 'Submitting stake…'}
+                      {signingPhase === 'approving'
+                        ? 'Approve USDC in wallet…'
+                        : signingPhase === 'staking'
+                        ? 'Sign stake in wallet…'
+                        : 'Recording on backend…'}
                     </>
                   ) : (
                     (allowance ?? 0n) < amountWei

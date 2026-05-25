@@ -14,7 +14,6 @@ import { listPromptStakeJobs } from './services/internalJobs';
 import { configurePromptStakeQueue, setPromptStakePublisher } from './services/queue';
 import { handleApprovedReviewSubmitted } from './services/reviewWebhookHandlers';
 import { activatePendingStake } from './services/stakeResolution';
-import { confirmStakeOnchainAndActivate } from './services/stakeConfirmation';
 
 await runMigrations();
 
@@ -53,7 +52,6 @@ const app = createApp({
   onInstallationRepositoriesAdded: handleInstallationRepositoriesAdded,
   onInstallationRepositoriesRemoved: handleInstallationRepositoriesRemoved,
   onActivatePendingStake: activatePendingStake,
-  onConfirmStake: confirmStakeOnchainAndActivate,
   listPromptStakeJobs,
   onPromptStakeNotification: async (input) => {
     console.info('[notifier] prompt-stake webhook received', {
