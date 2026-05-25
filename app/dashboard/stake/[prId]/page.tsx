@@ -20,7 +20,11 @@ function StakeFlowInner({ prId }: { prId: number }) {
   const searchParams = useSearchParams();
   const repoSlug = searchParams.get('repo') ?? '';
 
-  const [stakeId] = useState(() => crypto.randomUUID());
+  const [stakeId] = useState(() => {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return '0x' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  });
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('form');
   const [txHash, setTxHash] = useState('');
