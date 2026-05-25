@@ -33,27 +33,21 @@ function StakeFlowInner({ prId }: { prId: number }) {
   const usdcAmount = parseFloat(amount) || 0;
   const multiplier = (reviewer?.reputationScore ?? 0) >= 700 ? 1.5 : 1;
   const estimatedYield = usdcAmount * 0.18 * (30 / 365) * multiplier;
-  const minStake = pr ? pr.minStakeUsdc / 1_000_000 : 0.5;
-  const effectiveMin = Math.max(minStake, 0.5);
+  const effectiveMin = 0.5;
 
   async function handleConfirmStake() {
     if (!isWalletConnected || !isFullyRegistered) { openModal(); return; }
     if (!walletAddress) return;
-    const basename = githubSession?.basename;
-    if (!basename) {
-      setSignError('No Basename linked. Re-link your GitHub account to set one up.');
-      return;
-    }
     setSignError('');
     setStep('signing');
     try {
       const result = await submitStake({
-        basename,
         repoSlug: pr?.repoSlug ?? repoSlug,
         prId: pr?.prId ?? prId,
         amountUsdc: Math.round(usdcAmount * 1_000_000),
         walletAddress,
         stakeId,
+        basename: githubSession?.basename ?? reviewer?.basename ?? '',
       });
       setTxHash(result.txHash);
       setStep('success');
@@ -270,11 +264,6 @@ function StakeFlowInner({ prId }: { prId: number }) {
                   <span className="text-[10px] font-mono text-white/20">#{pr?.prId ?? prId}</span>
                   {pr && !pr.stakeEnabled && (
                     <span className="text-[10px] font-mono text-red-400/60">Staking disabled for this repo</span>
-                  )}
-                  {pr && pr.minStakeUsdc > 1_000_000 && (
-                    <span className="text-[10px] font-mono text-amber-400/60">
-                      Min stake: {formatUsdc(pr.minStakeUsdc)}
-                    </span>
                   )}
                 </div>
               </div>

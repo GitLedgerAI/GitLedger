@@ -55,7 +55,7 @@ type AppOptions = {
   onConfirmStake?: (input: {
     stakeId: string;
     reviewerAddress: `0x${string}`;
-    reviewerBasename: string;
+    reviewerBasename?: string;
     repoSlug: string;
     prId: number;
     amountUsdc: number;

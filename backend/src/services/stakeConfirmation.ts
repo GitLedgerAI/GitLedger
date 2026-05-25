@@ -4,7 +4,7 @@ import { activatePendingStake } from './stakeResolution';
 export type ConfirmStakeInput = {
   stakeId: string;
   reviewerAddress: `0x${string}`;
-  reviewerBasename: string;
+  reviewerBasename?: string;
   repoSlug: string;
   prId: number;
   amountUsdc: number;
@@ -17,7 +17,7 @@ export async function confirmStakeOnchainAndActivate(input: ConfirmStakeInput): 
   onchainStakeId?: string | null;
   attestationUid?: string | null;
 }> {
-  if (!input.stakeId || !input.reviewerBasename || !input.repoSlug || !input.prId || !input.amountUsdc) {
+  if (!input.stakeId || !input.repoSlug || !input.prId || !input.amountUsdc) {
     return { ok: false, reason: 'missing_required_fields' };
   }
 

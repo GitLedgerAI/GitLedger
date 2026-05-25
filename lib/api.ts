@@ -19,7 +19,6 @@ async function trpcQuery<T>(
   }
   const batch: [{ result: { data: unknown } }] = await res.json();
   const data = batch[0]?.result?.data;
-  // Handle SuperJSON envelope {json: T} and bare responses equally
   if (data !== null && typeof data === 'object' && 'json' in data) {
     return (data as { json: T }).json;
   }
@@ -78,6 +77,7 @@ export async function getLeaderboard(params: {
 }
 
 export function getReviewerByBasename(basename: string): Promise<Reviewer> {
+  if (!basename) return Promise.reject(new Error('basename is required'));
   return trpcQuery<Reviewer>('reviewer.getByBasename', { basename });
 }
 
@@ -85,13 +85,14 @@ export function getReviewerAttestations(
   basename: string,
   verdict?: Verdict | 'ALL',
 ): Promise<Attestation[]> {
+  if (!basename) return Promise.reject(new Error('basename is required'));
   return trpcQuery<Attestation[]>('reviewer.getAttestations', {
     basename,
     ...(verdict && verdict !== 'ALL' ? { verdict } : {}),
   });
 }
 
-// tRPC v11 mutation (POST) wire format
+// tRPC v11 mutation (POST) wire format (no SuperJSON transformer)
 async function trpcMutate<T>(
   proc: string,
   input: Record<string, unknown> = {},
@@ -122,16 +123,16 @@ export function getMyStakes(address: string): Promise<Stake[]> {
 }
 
 export function submitStake(params: {
-  basename: string;
   repoSlug: string;
   prId: number;
   amountUsdc: number;
   walletAddress: string;
   stakeId: string;
+  basename?: string;
 }): Promise<{ attestationUid: string; txHash: string }> {
   return trpcMutate(
     'stake.submit',
-    { basename: params.basename, repoSlug: params.repoSlug, prId: params.prId, amountUsdc: params.amountUsdc, stakeId: params.stakeId },
+    { repoSlug: params.repoSlug, prId: params.prId, amountUsdc: params.amountUsdc, stakeId: params.stakeId, basename: params.basename ?? '' },
     walletHeader(params.walletAddress),
   );
 }

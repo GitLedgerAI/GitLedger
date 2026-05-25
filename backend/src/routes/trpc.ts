@@ -29,7 +29,7 @@ const adminProcedure = t.procedure.use(requireAuth).use(requireRole(['admin', 'i
 const VerdictSchema = z.enum(['ALL', 'ACTIVE', 'CLEAN', 'SLASHED']);
 
 const reviewerRouter = t.router({
-  getByBasename: publicProcedure.input(z.object({ basename: z.string() })).query(async ({ input }) => {
+  getByBasename: publicProcedure.input(z.object({ basename: z.string().min(1) })).query(async ({ input }) => {
     const row = await db.query.reviewers.findFirst({ where: eq(reviewers.basename, input.basename) });
     if (!row) return null;
     return {
@@ -88,7 +88,7 @@ const reviewerRouter = t.router({
       return mapped;
     }),
 
-  getAttestations: publicProcedure.input(z.object({ basename: z.string(), verdict: VerdictSchema.optional() })).query(async ({ input }) => {
+  getAttestations: publicProcedure.input(z.object({ basename: z.string().min(1), verdict: VerdictSchema.optional() })).query(async ({ input }) => {
     const where = input.verdict && input.verdict !== 'ALL'
       ? and(eq(attestations.basename, input.basename), eq(attestations.verdict, input.verdict))
       : eq(attestations.basename, input.basename);
@@ -155,23 +155,20 @@ const stakeRouter = t.router({
       changedFiles: pr?.changedFiles ?? 0,
       author: pr?.author ?? '',
       languages,
-      minStakeUsdc: repoRow?.minStakeUsdc ?? 500_000,
+      minStakeUsdc: repoRow?.minStakeUsdc ?? 0,
       stakeEnabled: repoRow?.stakeEnabled ?? false,
     };
   }),
 
-  submit: protectedProcedure.input(z.object({ basename: z.string(), repoSlug: z.string(), prId: z.number().int().positive(), amountUsdc: z.number().int().min(500_000), stakeId: z.string() })).mutation(async ({ input, ctx }) => {
+  submit: protectedProcedure.input(z.object({ basename: z.string().optional(), repoSlug: z.string(), prId: z.number().int().positive(), amountUsdc: z.number().int().min(500_000), stakeId: z.string() })).mutation(async ({ input, ctx }) => {
     const reviewer = await db.query.reviewers.findFirst({ where: eq(reviewers.address, ctx.walletAddress!) });
     if (!reviewer) throw new TRPCError({ code: 'UNAUTHORIZED' });
-    if (reviewer.basename && reviewer.basename !== input.basename) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'basename_mismatch' });
-    }
 
     const { confirmStakeOnchainAndActivate } = await import('../services/stakeConfirmation');
     const result = await confirmStakeOnchainAndActivate({
       stakeId: input.stakeId,
       reviewerAddress: ctx.walletAddress as `0x${string}`,
-      reviewerBasename: input.basename,
+      reviewerBasename: input.basename ?? reviewer.basename ?? '',
       repoSlug: input.repoSlug,
       prId: input.prId,
       amountUsdc: input.amountUsdc,
@@ -216,7 +213,7 @@ const repoRouter = t.router({
       activeReviews: Number(a.activeReviews ?? 0),
       slashCount: Number(a.slashCount ?? 0),
       slashRate,
-      minStakeUsdc: row.minStakeUsdc ?? 500_000,
+      minStakeUsdc: row.minStakeUsdc ?? 0,
       stakeEnabled: row.stakeEnabled ?? false,
     };
   }),

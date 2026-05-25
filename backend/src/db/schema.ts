@@ -4,7 +4,7 @@ export const repos = pgTable('repos', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: text('slug').unique().notNull(),
   ghInstallId: bigint('gh_install_id', { mode: 'number' }),
-  minStakeUsdc: integer('min_stake_usdc').default(3_000_000),
+  minStakeUsdc: integer('min_stake_usdc').default(0),
   stakeEnabled: boolean('stake_enabled').default(true),
   installedAt: timestamp('installed_at').defaultNow(),
 });

@@ -41,7 +41,10 @@ export default function StakeCard({ stake, showActions = false }: StakeCardProps
       </div>
       <div className="flex flex-col items-end gap-2 shrink-0">
         <VerdictBadge verdict={verdict} size="sm" />
-        <span className="text-sm font-mono font-bold text-white/70">{formatUsdc(stake.amountUsdc)}</span>
+        {stake.state === 'pending_stake' && stake.amountUsdc === 0
+          ? <span className="text-sm font-mono font-bold text-amber-400/60">min $0.50</span>
+          : <span className="text-sm font-mono font-bold text-white/70">{formatUsdc(stake.amountUsdc)}</span>
+        }
         {showActions && (stake.state === 'active' || stake.state === 'pending_stake') && (
           <Link
             href={`/dashboard/stake/${stake.prId}?repo=${encodeURIComponent(stake.repoSlug ?? '')}`}
