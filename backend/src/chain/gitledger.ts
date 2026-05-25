@@ -80,6 +80,15 @@ export async function writeSlashReview(params: {
   repoSlug: string;
   prId: number;
 }) {
+  console.log('[chain] writeSlashReview: preparing tx', {
+    stakeId: params.stakeId,
+    reporter: params.reporter,
+    reviewer: params.reviewer,
+    repoSlug: params.repoSlug,
+    prId: params.prId,
+    contract: contractAddress,
+  });
+
   const schemaData = encodeEasPayload({
     stakeId: params.stakeId,
     reviewer: params.reviewer,
@@ -93,6 +102,8 @@ export async function writeSlashReview(params: {
     functionName: 'slashReview',
     args: [params.stakeId, params.reporter, schemaData],
   });
+
+  console.log('[chain] writeSlashReview: tx submitted', { stakeId: params.stakeId, txHash: hash });
 
   return { txHash: hash };
 }

@@ -26,9 +26,28 @@ export async function hotfixSharesFiles(
     getPullRequestFiles(repoSlug, hotfixPrId),
     getPullRequestFiles(repoSlug, stakedPrId),
   ]);
-  if (hotfixFiles.length === 0 || stakedFiles.length === 0) return false;
+  if (hotfixFiles.length === 0 || stakedFiles.length === 0) {
+    console.log('[hotfix-match] file overlap: one side empty (likely GitHub API miss)', {
+      repoSlug,
+      hotfixPrId,
+      stakedPrId,
+      hotfixFileCount: hotfixFiles.length,
+      stakedFileCount: stakedFiles.length,
+    });
+    return false;
+  }
   const stakedSet = new Set(stakedFiles);
-  return hotfixFiles.some((f) => stakedSet.has(f));
+  const overlap = hotfixFiles.filter((f) => stakedSet.has(f));
+  console.log('[hotfix-match] file overlap result', {
+    repoSlug,
+    hotfixPrId,
+    stakedPrId,
+    hotfixFileCount: hotfixFiles.length,
+    stakedFileCount: stakedFiles.length,
+    overlapCount: overlap.length,
+    overlapSample: overlap.slice(0, 5),
+  });
+  return overlap.length > 0;
 }
 
 export type HotfixMatch = {
@@ -49,11 +68,24 @@ export async function hotfixMatchesStakedPr(params: {
   hotfixBody: string | null | undefined;
   stakedPrId: number;
 }): Promise<HotfixMatch> {
-  if (bodyReferencesPrId(params.hotfixBody, params.stakedPrId)) {
+  const bodyRef = bodyReferencesPrId(params.hotfixBody, params.stakedPrId);
+  console.log('[hotfix-match] body-reference check', {
+    repoSlug: params.repoSlug,
+    hotfixPrId: params.hotfixPrId,
+    stakedPrId: params.stakedPrId,
+    bodyHasRef: bodyRef,
+    bodyLength: params.hotfixBody?.length ?? 0,
+  });
+  if (bodyRef) {
     return { matches: true, reason: 'body_ref' };
   }
   if (await hotfixSharesFiles(params.repoSlug, params.hotfixPrId, params.stakedPrId)) {
     return { matches: true, reason: 'file_overlap' };
   }
+  console.log('[hotfix-match] no signal matched — not a hotfix for this stake', {
+    repoSlug: params.repoSlug,
+    hotfixPrId: params.hotfixPrId,
+    stakedPrId: params.stakedPrId,
+  });
   return { matches: false, reason: null };
 }
