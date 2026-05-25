@@ -10,8 +10,10 @@ import {
   isInstallationCreated,
   isInstallationDeleted,
   isInstallationRepositoriesEvent,
+  isMergedPullRequest,
   type GitHubInstallationEvent,
   type GitHubInstallationRepositoriesEvent,
+  type GitHubPullRequestEvent,
   type GitHubReviewEvent,
   verifyGitHubSignature,
 } from './services/githubWebhook';
@@ -35,6 +37,13 @@ type AppOptions = {
     repoSlug: string;
     prId: number;
     prTitle?: string;
+  }) => Promise<unknown>;
+  onMergedPullRequest?: (input: {
+    repoSlug: string;
+    prId: number;
+    prTitle?: string | null;
+    prBody?: string | null;
+    reporterLogin?: string | null;
   }) => Promise<unknown>;
   onInstallationCreated?: (installationId: number) => Promise<void>;
   onInstallationDeleted?: (installationId: number) => Promise<void>;
@@ -241,6 +250,25 @@ export function createApp(options: AppOptions) {
           prTitle: payload.pull_request?.title,
         });
         console.log('[github-webhook] approved review handled', { deliveryId, reviewerLogin, repoSlug, prId });
+      }
+    }
+
+    if (eventName === 'pull_request' && options.onMergedPullRequest) {
+      const payload = JSON.parse(rawBody) as GitHubPullRequestEvent;
+      if (isMergedPullRequest(eventName, payload)) {
+        const repoSlug = payload.repository?.full_name ?? '';
+        const prId = payload.pull_request!.number!;
+        const prTitle = payload.pull_request?.title ?? null;
+        const reporterLogin = payload.pull_request?.merged_by?.login ?? payload.pull_request?.user?.login ?? null;
+        console.log('[github-webhook] merged pr detected', { deliveryId, repoSlug, prId, prTitle });
+        await options.onMergedPullRequest({
+          repoSlug,
+          prId,
+          prTitle,
+          prBody: payload.pull_request?.body ?? null,
+          reporterLogin,
+        });
+        console.log('[github-webhook] merged pr handled', { deliveryId, repoSlug, prId });
       }
     }
 

@@ -15,6 +15,19 @@ export type GitHubReviewEvent = {
   pull_request?: { number?: number; title?: string };
 };
 
+export type GitHubPullRequestEvent = {
+  action?: string;
+  repository?: { full_name?: string };
+  pull_request?: {
+    number?: number;
+    title?: string;
+    body?: string | null;
+    merged?: boolean;
+    user?: { login?: string };
+    merged_by?: { login?: string } | null;
+  };
+};
+
 export type GitHubInstallationEvent = {
   action?: string;
   installation?: { id?: number };
@@ -32,6 +45,15 @@ export function isApprovedReviewSubmission(eventName: string | null, payload: Gi
     eventName === 'pull_request_review' &&
     payload.action === 'submitted' &&
     payload.review?.state?.toLowerCase() === 'approved'
+  );
+}
+
+export function isMergedPullRequest(eventName: string | null, payload: GitHubPullRequestEvent): boolean {
+  return (
+    eventName === 'pull_request' &&
+    payload.action === 'closed' &&
+    payload.pull_request?.merged === true &&
+    typeof payload.pull_request?.number === 'number'
   );
 }
 

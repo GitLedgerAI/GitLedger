@@ -13,6 +13,7 @@ import { getHealthReport } from './services/health';
 import { listPromptStakeJobs } from './services/internalJobs';
 import { configurePromptStakeQueue, setPromptStakePublisher } from './services/queue';
 import { handleApprovedReviewSubmitted } from './services/reviewWebhookHandlers';
+import { handleMergedPullRequest } from './services/hotfixWebhookHandlers';
 import { activatePendingStake } from './services/stakeResolution';
 
 await runMigrations();
@@ -47,6 +48,16 @@ const app = createApp({
   },
   healthCheck,
   onApprovedReviewSubmitted: handleApprovedReviewSubmitted,
+  onMergedPullRequest: async (input) => {
+    const result = await handleMergedPullRequest(input);
+    console.info('[hotfix] merged pr processed', {
+      repoSlug: input.repoSlug,
+      prId: input.prId,
+      considered: result.considered,
+      reason: result.reason,
+      slashed: result.slashed,
+    });
+  },
   onInstallationCreated: handleInstallationCreated,
   onInstallationDeleted: handleInstallationDeleted,
   onInstallationRepositoriesAdded: handleInstallationRepositoriesAdded,

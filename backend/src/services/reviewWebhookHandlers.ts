@@ -42,24 +42,25 @@ const defaultDeps: Dependencies = {
   upsertReviewerByGithubLogin: async (githubLogin: string) => {
     const placeholderAddress = `github:${githubLogin}`;
     const now = new Date();
-    const existing = await db.query.reviewers.findFirst({
+
+    // Insert-or-skip: tolerates concurrent webhook deliveries racing on the same
+    // github_login (or address PK). No-op when either unique constraint fires.
+    await db
+      .insert(reviewers)
+      .values({ address: placeholderAddress, githubLogin, lastActiveAt: now })
+      .onConflictDoNothing();
+
+    const row = await db.query.reviewers.findFirst({
       where: eq(reviewers.githubLogin, githubLogin),
     });
+    if (!row) throw new Error(`failed to upsert reviewer for github_login=${githubLogin}`);
 
-    if (existing) {
-      await db
-        .update(reviewers)
-        .set({ lastActiveAt: now })
-        .where(eq(reviewers.githubLogin, githubLogin));
-      return existing.address;
-    }
+    await db
+      .update(reviewers)
+      .set({ lastActiveAt: now })
+      .where(eq(reviewers.githubLogin, githubLogin));
 
-    await db.insert(reviewers).values({
-      address: placeholderAddress,
-      githubLogin,
-      lastActiveAt: now,
-    });
-    return placeholderAddress;
+    return row.address;
   },
   insertPendingStake: async ({ stakeId, reviewerAddr, repoId, prId, prTitle, amountUsdc }) => {
     await db
