@@ -18,6 +18,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { attestationEvents, attestations, reviewers, stakes } from '../db/schema';
+import { getLanguages, getRepo } from './githubApi';
 
 export type ActivatedInput = {
   stakeId: string;
@@ -83,6 +84,31 @@ export async function recordStakeActivated(input: ActivatedInput): Promise<void>
   const basename = reviewerRow?.basename ?? null;
   const reviewedAt = new Date();
 
+  // Fetch the repo's language list from GitHub. Best-effort: if the API call
+  // fails, we still record the activation; the language fields stay empty.
+  let repoLanguages: string[] = [];
+  try {
+    const repoInfo = await getRepo(input.repoSlug);
+    if (repoInfo?.languagesUrl) {
+      repoLanguages = await getLanguages(repoInfo.languagesUrl);
+    }
+    console.log('[lifecycle] fetched repo languages', {
+      repoSlug: input.repoSlug,
+      languages: repoLanguages,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('[lifecycle] failed to fetch repo languages — continuing without them', {
+      repoSlug: input.repoSlug,
+      error: message,
+    });
+  }
+
+  const existingLanguages = reviewerRow?.languages ?? [];
+  const mergedLanguages = Array.from(new Set([...existingLanguages, ...repoLanguages]));
+  const reviewerLanguagesChanged =
+    repoLanguages.length > 0 && mergedLanguages.length !== existingLanguages.length;
+
   await db.transaction(async (tx) => {
     await tx
       .insert(attestations)
@@ -97,6 +123,7 @@ export async function recordStakeActivated(input: ActivatedInput): Promise<void>
         verdict: 'ACTIVE',
         reviewedAt,
         reputationDelta: 0,
+        repoLanguages,
         txHash: input.txHashStake,
       })
       .onConflictDoNothing({ target: attestations.uid });
@@ -116,11 +143,16 @@ export async function recordStakeActivated(input: ActivatedInput): Promise<void>
       .set({
         totalStakedUsdc: sql`coalesce(${reviewers.totalStakedUsdc}, 0) + ${input.amountUsdc}`,
         lastActiveAt: reviewedAt,
+        ...(reviewerLanguagesChanged ? { languages: mergedLanguages } : {}),
       })
       .where(eq(reviewers.address, input.reviewerAddr));
   });
 
-  console.log('[lifecycle] activation recorded', { stakeId: input.stakeId });
+  console.log('[lifecycle] activation recorded', {
+    stakeId: input.stakeId,
+    languagesAdded: repoLanguages,
+    reviewerLanguagesNow: mergedLanguages,
+  });
 }
 
 /**

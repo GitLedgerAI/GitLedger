@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { db } from '../db/client';
 import { repos, reviewers, stakes } from '../db/schema';
 import { enqueuePromptStake } from './queue';
@@ -63,18 +63,37 @@ const defaultDeps: Dependencies = {
     return row.address;
   },
   insertPendingStake: async ({ stakeId, reviewerAddr, repoId, prId, prTitle, amountUsdc }) => {
-    await db
-      .insert(stakes)
-      .values({
-        stakeId,
-        reviewerAddr,
-        repoId,
-        prId,
-        prTitle,
-        amountUsdc,
-        state: 'pending_stake',
-      })
-      .onConflictDoNothing({ target: stakes.stakeId });
+    // Wrap in a transaction: clear any orphan pending_stake for the same
+    // (repo, pr, reviewer) tuple but a different stake_id (e.g. from an old
+    // deriveStakeId formula), then insert/no-op on the current stake_id.
+    // The partial unique index from 0005 enforces this at DB level too.
+    await db.transaction(async (tx) => {
+      if (repoId) {
+        await tx
+          .delete(stakes)
+          .where(
+            and(
+              eq(stakes.repoId, repoId),
+              eq(stakes.prId, prId),
+              eq(stakes.reviewerAddr, reviewerAddr),
+              eq(stakes.state, 'pending_stake'),
+              ne(stakes.stakeId, stakeId),
+            ),
+          );
+      }
+      await tx
+        .insert(stakes)
+        .values({
+          stakeId,
+          reviewerAddr,
+          repoId,
+          prId,
+          prTitle,
+          amountUsdc,
+          state: 'pending_stake',
+        })
+        .onConflictDoNothing({ target: stakes.stakeId });
+    });
   },
   enqueuePromptStake,
 };

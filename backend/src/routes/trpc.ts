@@ -1,5 +1,5 @@
 import { TRPCError, initTRPC } from '@trpc/server';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/client';
 import { attestations, promptStakeJobs, repos, reviewers, stakes } from '../db/schema';
@@ -181,28 +181,45 @@ const stakeRouter = t.router({
       const repoRow = await db.query.repos.findFirst({ where: eq(repos.slug, input.repoSlug) });
       const pr = await getPullRequest(input.repoSlug, input.prId);
 
-      await db
-        .insert(stakes)
-        .values({
-          stakeId: input.stakeId,
-          reviewerAddr,
-          repoId: repoRow?.id,
-          prId: input.prId,
-          prTitle: pr?.prTitle,
-          amountUsdc: input.amountUsdc,
-          state: 'pending_stake',
-        })
-        .onConflictDoUpdate({
-          target: stakes.stakeId,
-          set: {
+      // Dedupe orphan pending_stake rows for the same (repo, pr, reviewer)
+      // before upserting by stake_id. See migration 0005.
+      await db.transaction(async (tx) => {
+        if (repoRow?.id) {
+          await tx
+            .delete(stakes)
+            .where(
+              and(
+                eq(stakes.repoId, repoRow.id),
+                eq(stakes.prId, input.prId),
+                eq(stakes.reviewerAddr, reviewerAddr),
+                eq(stakes.state, 'pending_stake'),
+                ne(stakes.stakeId, input.stakeId),
+              ),
+            );
+        }
+        await tx
+          .insert(stakes)
+          .values({
+            stakeId: input.stakeId,
             reviewerAddr,
             repoId: repoRow?.id,
             prId: input.prId,
             prTitle: pr?.prTitle,
             amountUsdc: input.amountUsdc,
             state: 'pending_stake',
-          },
-        });
+          })
+          .onConflictDoUpdate({
+            target: stakes.stakeId,
+            set: {
+              reviewerAddr,
+              repoId: repoRow?.id,
+              prId: input.prId,
+              prTitle: pr?.prTitle,
+              amountUsdc: input.amountUsdc,
+              state: 'pending_stake',
+            },
+          });
+      });
 
       const schemaData = encodeEasPayload({
         stakeId: input.stakeId as `0x${string}`,

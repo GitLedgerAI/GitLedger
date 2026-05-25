@@ -24,6 +24,8 @@ const envSchema = z.object({
   INTERNAL_SERVICE_TOKEN: z.string().min(1).default('dev_internal_service_token'),
   BASE_RPC_URL: z.string().url(),
   SIGNER_PRIVATE_KEY: z.string().min(1).transform(normalizePrivateKey),
+  // Optional: only required when running scripts/fundYieldPool.ts. Main backend never uses it.
+  TREASURY_MANAGER_PRIVATE_KEY: z.string().optional(),
   GITLEDGER_CONTRACT: z.string().min(1),
   EAS_CONTRACT_BASE: z.string().min(1),
   EAS_SCHEMA_UID: z.string().min(1),

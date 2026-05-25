@@ -36,6 +36,20 @@ export const gitLedgerAbi = [
   },
   {
     type: 'function',
+    name: 'fundYieldPool',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'amount', type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'treasuryManager',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    type: 'function',
     name: 'usdc',
     stateMutability: 'view',
     inputs: [],

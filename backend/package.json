@@ -14,6 +14,7 @@
     "db:migrate:sql": "bun src/scripts/migrate.ts",
     "worker:start": "bun src/scripts/worker.ts",
     "oracle:run": "bun src/scripts/oracle.ts",
+    "yield:fund": "bun src/scripts/fundYieldPool.ts",
     "test:integration": "RUN_INTEGRATION=1 bun test test/integration.services.test.ts"
   },
   "dependencies": {
