@@ -2,27 +2,23 @@ import type { Reviewer, Attestation, Stake, Repo, Verdict } from './types';
 
 const BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://backend-uuq8.onrender.com').replace(/\/$/, '');
 
-// tRPC v11 httpBatchLink wire format
+// tRPC v11 batch wire format (default transformer — no SuperJSON `json` wrapper)
 async function trpcQuery<T>(
   proc: string,
   input: Record<string, unknown> = {},
   extraHeaders: Record<string, string> = {},
 ): Promise<T> {
-  const inputParam = encodeURIComponent(JSON.stringify({ '0': { json: input } }));
+  const inputParam = encodeURIComponent(JSON.stringify({ '0': input }));
   const res = await fetch(`${BASE}/trpc/${proc}?batch=1&input=${inputParam}`, {
     headers: { 'Content-Type': 'application/json', ...extraHeaders },
     cache: 'no-store',
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`[${proc}] ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(`[${proc}] ${res.status}: ${body.slice(0, 500)}`);
   }
-  const batch: [{ result: { data: unknown } }] = await res.json();
-  const data = batch[0]?.result?.data;
-  if (data !== null && typeof data === 'object' && 'json' in data) {
-    return (data as { json: T }).json;
-  }
-  return data as T;
+  const batch: [{ result: { data: T } }] = await res.json();
+  return batch[0].result.data;
 }
 
 const walletHeader = (addr: string | null | undefined): Record<string, string> =>
@@ -92,7 +88,6 @@ export function getReviewerAttestations(
   });
 }
 
-// tRPC v11 mutation (POST) wire format (no SuperJSON transformer)
 async function trpcMutate<T>(
   proc: string,
   input: Record<string, unknown> = {},
@@ -101,19 +96,15 @@ async function trpcMutate<T>(
   const res = await fetch(`${BASE}/trpc/${proc}?batch=1`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...extraHeaders },
-    body: JSON.stringify({ '0': { json: input } }),
+    body: JSON.stringify({ '0': input }),
     cache: 'no-store',
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`[${proc}] ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(`[${proc}] ${res.status}: ${body.slice(0, 500)}`);
   }
-  const batch: [{ result: { data: unknown } }] = await res.json();
-  const data = batch[0]?.result?.data;
-  if (data !== null && typeof data === 'object' && 'json' in data) {
-    return (data as { json: T }).json;
-  }
-  return data as T;
+  const batch: [{ result: { data: T } }] = await res.json();
+  return batch[0].result.data;
 }
 
 // ── stake ────────────────────────────────────────────────────────────────────
