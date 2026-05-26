@@ -48,6 +48,24 @@ export default function OnboardingPage() {
   const [scimToken, setScimToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const friendlyOAuthError = (raw: string): string => {
+    if (/invalid_github_host|invalid_host|bad_host/i.test(raw))
+      return 'That GitHub Enterprise host is not reachable. Check the spelling (e.g. github.acme.io — no protocol, no path).';
+    if (/host_not_found|dns|ENOTFOUND/i.test(raw))
+      return 'We could not resolve that host. Verify your GitHub Enterprise URL with your IT admin.';
+    if (/wallet_already_bound|org_already_bound|already_bound/i.test(raw))
+      return 'This wallet is already bound to another GitHub Enterprise org. Disconnect there first or use a different wallet.';
+    if (/oauth_app_missing|app_not_installed/i.test(raw))
+      return 'The GitLedger OAuth App is not installed on your GitHub Enterprise instance. Ask your admin to approve it first.';
+    if (/\b401\b|UNAUTHORIZED/.test(raw))
+      return 'Session expired — reconnect your wallet and try again.';
+    if (/\b403\b|FORBIDDEN|not_a_member/.test(raw))
+      return 'Your wallet is not authorized to connect this org. Contact your GitLedger admin.';
+    if (/\b5\d\d\b/.test(raw))
+      return 'GitHub Enterprise OAuth service is temporarily unavailable. Try again in a moment.';
+    return 'OAuth start failed. Please try again.';
+  };
+
   const beginOAuth = async () => {
     setError(null);
     if (!walletAddress) {
@@ -62,7 +80,8 @@ export default function OnboardingPage() {
       });
       window.location.href = r.redirectUrl;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'OAuth start failed');
+      const raw = err instanceof Error ? err.message : String(err);
+      setError(friendlyOAuthError(raw));
     }
   };
 
