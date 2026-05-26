@@ -19,6 +19,22 @@ export default function PolicyRuleForm({ onSubmit, submitting = false }: Props) 
   const [requireCbVerify, setRequireCbVerify] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const friendlyPolicyError = (raw: string): string => {
+    if (/duplicate_policy|policy_path_already_exists|already_exists/i.test(raw))
+      return 'A policy already exists for that path pattern. Edit or remove it before adding a new rule.';
+    if (/invalid_path_pattern|bad_glob|invalid_glob/i.test(raw))
+      return 'That path pattern is not a valid glob (e.g. use contracts/** or src/auth/**).';
+    if (/contract_revert|onchain_rejected/i.test(raw))
+      return 'CompliancePolicy.sol rejected the rule. Confirm your wallet is an org multisig signer.';
+    if (/not_a_member_of_this_org|FORBIDDEN|\b403\b/.test(raw))
+      return 'You are not authorized to edit policies for this organization.';
+    if (/\b401\b|UNAUTHORIZED/.test(raw))
+      return 'Session expired — reconnect your wallet and try again.';
+    if (/\b5\d\d\b/.test(raw))
+      return 'Policy service is temporarily unavailable. Try again in a moment.';
+    return 'Failed to create policy. Please try again.';
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -42,7 +58,8 @@ export default function PolicyRuleForm({ onSubmit, submitting = false }: Props) 
       setMinReviewers('2');
       setRequireCbVerify(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create policy');
+      const raw = err instanceof Error ? err.message : String(err);
+      setError(friendlyPolicyError(raw));
     }
   };
 

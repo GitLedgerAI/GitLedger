@@ -14,6 +14,22 @@ import {
 } from '@/lib/enterprise-hooks';
 import { MOCK_ORG } from '@/lib/enterprise-mock';
 
+const friendlyDeleteError = (raw: string): string => {
+  if (/policy_not_found|not_found|\b404\b/i.test(raw))
+    return 'That policy no longer exists — it may have been removed elsewhere. Refresh to see the latest rules.';
+  if (/policy_in_use|active_violations/i.test(raw))
+    return 'Cannot remove a policy with open violations. Resolve outstanding PRs first.';
+  if (/contract_revert|onchain_rejected/i.test(raw))
+    return 'CompliancePolicy.sol rejected the removal. Confirm your wallet is an org multisig signer.';
+  if (/not_a_member_of_this_org|FORBIDDEN|\b403\b/.test(raw))
+    return 'You are not authorized to remove policies for this organization.';
+  if (/\b401\b|UNAUTHORIZED/.test(raw))
+    return 'Session expired — reconnect your wallet and try again.';
+  if (/\b5\d\d\b/.test(raw))
+    return 'Policy service is temporarily unavailable. Try again in a moment.';
+  return 'Failed to remove policy. Please try again.';
+};
+
 export default function PolicyEnginePage() {
   const orgSlug = MOCK_ORG.orgSlug;
   const { data: org } = useEnterpriseOrg(orgSlug);
@@ -23,6 +39,7 @@ export default function PolicyEnginePage() {
 
   const [showForm, setShowForm] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   return (
     <>
@@ -134,9 +151,16 @@ export default function PolicyEnginePage() {
                 onDelete={id => {
                   if (confirmId !== id) {
                     setConfirmId(id);
+                    setDeleteError(null);
                     return;
                   }
-                  deleteMut.mutate(id, { onSettled: () => setConfirmId(null) });
+                  deleteMut.mutate(id, {
+                    onError: err => {
+                      const raw = err instanceof Error ? err.message : String(err);
+                      setDeleteError(friendlyDeleteError(raw));
+                    },
+                    onSettled: () => setConfirmId(null),
+                  });
                 }}
               />
             ))
@@ -147,6 +171,9 @@ export default function PolicyEnginePage() {
             Click <span className="font-bold">Remove</span> again to confirm — this revokes
             enforcement on next PR sync.
           </p>
+        )}
+        {deleteError && (
+          <p className="text-[11px] font-mono text-red-400/85 mt-3">{deleteError}</p>
         )}
       </section>
 
