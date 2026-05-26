@@ -48,6 +48,24 @@ export default function SiemForm({ onSubmit, submitting = false }: Props) {
     });
   };
 
+  const friendlySiemError = (raw: string): string => {
+    if (/duplicate_webhook|endpoint_already_exists|already_exists/i.test(raw))
+      return 'A webhook for that endpoint already exists. Edit or remove it before adding a new one.';
+    if (/invalid_endpoint_url|bad_url|invalid_url/i.test(raw))
+      return 'Endpoint URL is invalid. Use a fully-qualified https:// URL your SIEM exposes.';
+    if (/endpoint_unreachable|connect_timeout|ENOTFOUND|ECONNREFUSED/i.test(raw))
+      return 'We could not reach that endpoint. Confirm the URL is publicly accessible (or allowlist GitLedger IPs).';
+    if (/invalid_hmac_secret|hmac_failed/i.test(raw))
+      return 'HMAC signing setup failed. Regenerate your SIEM secret and retry.';
+    if (/not_a_member_of_this_org|FORBIDDEN|\b403\b/.test(raw))
+      return 'You are not authorized to configure SIEM forwarders for this organization.';
+    if (/\b401\b|UNAUTHORIZED/.test(raw))
+      return 'Session expired — reconnect your wallet and try again.';
+    if (/\b5\d\d\b/.test(raw))
+      return 'SIEM forwarding service is temporarily unavailable. Try again in a moment.';
+    return 'Failed to create webhook. Please try again.';
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -67,7 +85,8 @@ export default function SiemForm({ onSubmit, submitting = false }: Props) {
       setLabel('');
       setEndpointUrl('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create webhook');
+      const raw = err instanceof Error ? err.message : String(err);
+      setError(friendlySiemError(raw));
     }
   };
 

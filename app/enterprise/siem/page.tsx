@@ -25,6 +25,22 @@ const PARTNER_LOGOS = [
   { name: 'Custom',      letter: '⤳', tone: 'text-white/65'      },
 ];
 
+const friendlySiemMutationError = (raw: string): string => {
+  if (/webhook_not_found|not_found|\b404\b/i.test(raw))
+    return 'That webhook no longer exists — it may have been removed elsewhere. Refresh to see the latest forwarders.';
+  if (/endpoint_unreachable|connect_timeout|ENOTFOUND|ECONNREFUSED/i.test(raw))
+    return 'Endpoint unreachable. Confirm the URL is publicly accessible (or allowlist GitLedger IPs).';
+  if (/invalid_hmac_secret|hmac_failed|signature_invalid/i.test(raw))
+    return 'HMAC verification failed at the destination. Rotate your SIEM secret and retry.';
+  if (/\b401\b|UNAUTHORIZED/.test(raw))
+    return 'Session expired — reconnect your wallet and try again.';
+  if (/not_a_member_of_this_org|FORBIDDEN|\b403\b/.test(raw))
+    return 'You are not authorized to manage SIEM forwarders for this organization.';
+  if (/\b5\d\d\b/.test(raw))
+    return 'SIEM forwarding service is temporarily unavailable. Try again in a moment.';
+  return 'Operation failed. Please try again.';
+};
+
 export default function SiemPage() {
   const orgSlug = MOCK_ORG.orgSlug;
   const { data: org } = useEnterpriseOrg(orgSlug);
@@ -35,6 +51,11 @@ export default function SiemPage() {
   const deleteMut = useDeleteSiemConfig(orgSlug);
 
   const [showForm, setShowForm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const handleMutationError = (err: unknown) => {
+    const raw = err instanceof Error ? err.message : String(err);
+    setActionError(friendlySiemMutationError(raw));
+  };
 
   return (
     <>
@@ -140,12 +161,29 @@ export default function SiemPage() {
               <SiemRow
                 key={cfg.id}
                 config={cfg}
-                onToggle={enabled => updateMut.mutate({ id: cfg.id, enabled })}
-                onTest={() => testMut.mutateAsync(cfg.id)}
-                onDelete={() => deleteMut.mutate(cfg.id)}
+                onToggle={enabled => {
+                  setActionError(null);
+                  updateMut.mutate({ id: cfg.id, enabled }, { onError: handleMutationError });
+                }}
+                onTest={async () => {
+                  setActionError(null);
+                  try {
+                    return await testMut.mutateAsync(cfg.id);
+                  } catch (err) {
+                    const raw = err instanceof Error ? err.message : String(err);
+                    return { ok: false, deliveredAt: new Date().toISOString(), error: friendlySiemMutationError(raw) };
+                  }
+                }}
+                onDelete={() => {
+                  setActionError(null);
+                  deleteMut.mutate(cfg.id, { onError: handleMutationError });
+                }}
               />
             ))}
           </div>
+        )}
+        {actionError && (
+          <p className="text-[11px] font-mono text-red-400/85 mt-3">{actionError}</p>
         )}
       </section>
 
