@@ -32,6 +32,18 @@ export default function AuditExportForm({ onSubmit, submitting = false }: Props)
   const [dateTo, setDateTo] = useState(todayIso);
   const [error, setError] = useState<string | null>(null);
 
+  const friendlyError = (raw: string): string => {
+    if (/not_a_member_of_this_org/i.test(raw))
+      return 'You are not a member of this organization. Connect a wallet linked to your org membership to export audit evidence.';
+    if (/\b403\b|FORBIDDEN/.test(raw))
+      return 'Permission denied — your role cannot generate audit exports.';
+    if (/\b401\b|UNAUTHORIZED/.test(raw))
+      return 'Session expired — reconnect your wallet and try again.';
+    if (/\b404\b|NOT_FOUND/.test(raw))
+      return 'Audit export service unavailable for this org.';
+    return 'Export failed. Please try again.';
+  };
+
   const submit = async () => {
     setError(null);
     if (new Date(dateFrom) > new Date(dateTo))
@@ -39,7 +51,8 @@ export default function AuditExportForm({ onSubmit, submitting = false }: Props)
     try {
       await onSubmit({ format, dateFrom, dateTo });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export failed');
+      const raw = err instanceof Error ? err.message : String(err);
+      setError(friendlyError(raw));
     }
   };
 
