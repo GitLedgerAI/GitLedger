@@ -3,6 +3,7 @@ import { db } from '../db/client';
 import { repos, reviewers, stakes } from '../db/schema';
 import { enqueuePromptStake } from './queue';
 import { deriveStakeId } from './stakeId';
+import { evaluatePoliciesForPr } from './enterprisePolicy';
 
 export type ApprovedReviewInput = {
   reviewerLogin: string;
@@ -153,6 +154,29 @@ export async function handleApprovedReviewSubmitted(
     prId: input.prId,
     minStakeUsdc,
   });
+
+  // Track 1 · Enterprise policy enforcement. Best-effort: a failure here must
+  // never block the stake lifecycle. The evaluator pulls changed files from
+  // GitHub, matches against enterprise_policies rows, and writes
+  // policy_violation events (which fan out to SIEM) when a rule fails.
+  evaluatePoliciesForPr({ repoSlug: input.repoSlug, prId: input.prId })
+    .then((result) => {
+      if (result && result.orgSlug && result.violations.length > 0) {
+        console.log('[github-webhook] enterprise policy violations recorded', {
+          repoSlug: input.repoSlug,
+          prId: input.prId,
+          orgSlug: result.orgSlug,
+          violationCount: result.violations.length,
+        });
+      }
+    })
+    .catch((err) => {
+      console.error('[github-webhook] enterprise policy evaluation crashed', {
+        repoSlug: input.repoSlug,
+        prId: input.prId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
 
   return { queued: true };
 }

@@ -8,6 +8,7 @@ import { reviewerExists } from '../trpc/context';
 import { getLanguages, getPullRequest, getRepo } from '../services/githubApi';
 import { encodeEasPayload, hashPr } from '../chain/eas';
 import { env } from '../config/env';
+import { enterpriseRouter } from './enterprise';
 
 const BYTES32_HEX = /^0x[0-9a-fA-F]{64}$/;
 const STAKE_WINDOW_SECONDS = 30 * 24 * 60 * 60;
@@ -328,5 +329,12 @@ const adminRouter = t.router({
     }),
 });
 
-export const appRouter = t.router({ reviewer: reviewerRouter, stake: stakeRouter, repo: repoRouter, feed: feedRouter, admin: adminRouter });
+export const appRouter = t.router({
+  reviewer: reviewerRouter,
+  stake: stakeRouter,
+  repo: repoRouter,
+  feed: feedRouter,
+  admin: adminRouter,
+  enterprise: enterpriseRouter,
+});
 export type AppRouter = typeof appRouter;
