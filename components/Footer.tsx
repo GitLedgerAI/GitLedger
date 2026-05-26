@@ -3,7 +3,7 @@ import Image from "next/image";
 const PROTOCOL_LINKS = ["How It Works", "Stake Mechanics", "EAS Attestations", "x402 API"];
 const COMMUNITY_LINKS = [
   { label: "Twitter / X", href: "https://x.com/gitledger_" },
-  { label: "Telegram",    href: "#" },
+  { label: "Telegram",    href: "https://t.me/gitledgerportal" },
 ];
 const RESOURCE_LINKS = [
   { label: "Roadmap",     href: "/roadmap" },
