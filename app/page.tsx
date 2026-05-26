@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
 import CellGrid from "@/components/CellGrid";
-import EmailSignup from "@/components/EmailSignup";
+import ContractAddress from "@/components/ContractAddress";
 import FloatingLogos from "@/components/FloatingLogo";
 import Footer from "@/components/Footer";
 import HowItWorks from "@/components/HowItWorks";
@@ -70,30 +70,14 @@ export default function Home() {
             <LogoMark size={96} />
           </motion.div>
 
-          {/* Coming soon pill */}
+          {/* Contract address pill */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.25 }}
             className="mb-8"
           >
-            <div className="inline-flex items-center gap-3 px-4 py-1.5 border border-white/10 rounded-full">
-              <motion.span
-                className="absolute inset-0 rounded-full bg-gradient-to-r from-transparent via-white/05 to-transparent"
-                animate={{ x: ["-100%", "200%"] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "linear", repeatDelay: 2 }}
-              />
-              <span className="relative flex gap-1 items-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse" />
-              </span>
-              <span className="text-[11px] font-mono tracking-[0.25em] text-white/45 uppercase">
-                Coming Soon
-              </span>
-              <span className="w-px h-3 bg-white/15" />
-              <span className="text-[11px] font-mono tracking-[0.2em] text-white/25 uppercase">
-                Q3 2026
-              </span>
-            </div>
+            <ContractAddress variant="pill" />
           </motion.div>
 
           {/* Headline */}
@@ -137,14 +121,14 @@ export default function Home() {
             className="w-32 h-px bg-white/12 mb-10"
           />
 
-          {/* Email */}
+          {/* Contract address block */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.95 }}
             className="w-full max-w-md"
           >
-            <EmailSignup />
+            <ContractAddress variant="block" />
           </motion.div>
 
           <motion.div
@@ -334,40 +318,6 @@ export default function Home() {
               </Reveal>
             );
           })}
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════
-          CTA
-      ══════════════════════════════════════ */}
-      <section className="relative z-10 w-full border-t border-white/06">
-        <div className="max-w-6xl mx-auto px-6 sm:px-12 py-28">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-            <Reveal direction="left">
-              <div>
-                <p className="text-[10px] font-mono tracking-[0.28em] text-white/25 uppercase mb-5">
-                  Early Access
-                </p>
-                <h2 className="text-4xl sm:text-5xl font-black tracking-tight text-white leading-[1.05] mb-4">
-                  Be First.<br />
-                  <span className="text-white/30 font-light italic">Stake Your Reputation.</span>
-                </h2>
-                <p className="text-white/30 text-base leading-relaxed font-light max-w-sm">
-                  Early reviewers earn a 2× yield multiplier for the first 30 days post-launch.
-                </p>
-              </div>
-            </Reveal>
-
-            <Reveal direction="right" delay={0.12}>
-              <div className="flex flex-col gap-5">
-                <EmailSignup />
-                <div className="flex items-center gap-3 text-[11px] font-mono text-white/18 tracking-wide">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
-                  No spam. Notified at launch only.
-                </div>
-              </div>
-            </Reveal>
-          </div>
         </div>
       </section>
 
