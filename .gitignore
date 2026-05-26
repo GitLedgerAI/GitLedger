@@ -1,6 +1,10 @@
 node_modules/
 .next/
 .claude/
+
+# Use npm exclusively; ignore other package managers' lockfiles
+pnpm-lock.yaml
+bun.lock
 *.env
 *.env.local
 .env.*
