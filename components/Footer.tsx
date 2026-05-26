@@ -1,9 +1,14 @@
 import Image from "next/image";
 
-const PROTOCOL_LINKS = ["How It Works", "Stake Mechanics", "EAS Attestations", "x402 API"];
+const PROTOCOL_LINKS = [
+  { label: "How It Works",     href: "/whitepaper#overview"  },
+  { label: "Stake Mechanics",  href: "/whitepaper#mechanics" },
+  { label: "EAS Attestations", href: "/whitepaper#schema"    },
+  { label: "x402 API",         href: "/whitepaper#x402"      },
+];
 const COMMUNITY_LINKS = [
-  { label: "Twitter / X", href: "https://x.com/gitledger_" },
-  { label: "Telegram",    href: "#" },
+  { label: "Twitter / X", href: "https://x.com/gitledger_"      },
+  { label: "Telegram",    href: "https://t.me/gitledgerportal" },
 ];
 const RESOURCE_LINKS = [
   { label: "Roadmap",     href: "/roadmap" },
@@ -37,10 +42,10 @@ export default function Footer() {
               Protocol
             </p>
             <ul className="flex flex-col gap-3">
-              {PROTOCOL_LINKS.map((item) => (
-                <li key={item}>
-                  <a href="#" className="text-white/22 text-sm font-light hover:text-white/55 transition-colors duration-200">
-                    {item}
+              {PROTOCOL_LINKS.map(({ label, href }) => (
+                <li key={label}>
+                  <a href={href} className="text-white/22 text-sm font-light hover:text-white/55 transition-colors duration-200">
+                    {label}
                   </a>
                 </li>
               ))}
