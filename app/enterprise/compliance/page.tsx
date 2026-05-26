@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import Reveal from '@/components/Reveal';
 import EnterpriseHeader from '@/components/enterprise/EnterpriseHeader';
 import EnterpriseBadge from '@/components/enterprise/EnterpriseBadge';
@@ -15,8 +16,21 @@ import {
   useCoverageSeries,
   useComplianceEvents,
 } from '@/lib/enterprise-hooks';
+import * as enterpriseApi from '@/lib/enterprise-api';
 import { MOCK_ORG } from '@/lib/enterprise-mock';
 import { formatUsdc, formatRelativeDate } from '@/lib/utils';
+
+const friendlyDashboardError = (raw: string): string => {
+  if (/not_a_member_of_this_org|FORBIDDEN|\b403\b/.test(raw))
+    return 'You are not a member of this organization — showing demo data. Connect a wallet linked to your org to see live compliance metrics.';
+  if (/\b401\b|UNAUTHORIZED/.test(raw))
+    return 'Session expired — showing demo data. Reconnect your wallet to refresh.';
+  if (/\b404\b|NOT_FOUND/.test(raw))
+    return 'Compliance backend not configured for this org — showing demo data.';
+  if (/\b5\d\d\b|fetch|network/i.test(raw))
+    return 'Compliance backend unreachable — showing demo data. Refresh in a moment.';
+  return 'Live data unavailable — showing demo data.';
+};
 
 export default function ComplianceDashboardPage() {
   const orgSlug = MOCK_ORG.orgSlug; // TODO: switch to active org once /enterprise/orgs ships
@@ -25,6 +39,17 @@ export default function ComplianceDashboardPage() {
   const { data: coverage = [], isLoading: cLoading } = useCoverageMap(orgSlug);
   const { data: series = [] } = useCoverageSeries(orgSlug, 30);
   const { data: events = [], isLoading: eLoading } = useComplianceEvents(orgSlug, 25);
+
+  // Raw probe so we can detect when the dashboard is silently showing mock data.
+  const probe = useQuery({
+    queryKey: ['enterprise.dashboardProbe', orgSlug],
+    queryFn: () => enterpriseApi.getEnterpriseOrg(orgSlug),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const probeMessage = probe.isError
+    ? friendlyDashboardError(probe.error instanceof Error ? probe.error.message : String(probe.error))
+    : null;
 
   return (
     <>
@@ -42,6 +67,15 @@ export default function ComplianceDashboardPage() {
           </Link>
         }
       />
+
+      {probeMessage && (
+        <div className="mb-6 bg-amber-500/[0.06] border border-amber-400/20 px-4 py-3 flex items-start gap-3">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 mt-1.5 shrink-0 animate-pulse" />
+          <p className="text-[12px] font-mono text-amber-200/85 leading-relaxed">
+            {probeMessage}
+          </p>
+        </div>
+      )}
 
       {/* ── Top KPI strip ────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
