@@ -7,8 +7,9 @@ import { useState } from 'react';
 import ConnectButton from '@/components/ConnectButton';
 
 const NAV_LINKS = [
-  { href: '/explore',   label: 'Leaderboard' },
-  { href: '/dashboard', label: 'Dashboard'   },
+  { href: '/explore',    label: 'Leaderboard' },
+  { href: '/dashboard',  label: 'Dashboard'   },
+  { href: '/enterprise', label: 'Enterprise'  },
 ];
 
 export default function Navbar() {

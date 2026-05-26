@@ -19,6 +19,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { attestationEvents, attestations, reviewers, stakes } from '../db/schema';
 import { getLanguages, getRepo } from './githubApi';
+import { onReviewClean, onReviewSlashed, onStakeLocked } from './enterpriseEvents';
 
 export type ActivatedInput = {
   stakeId: string;
@@ -153,6 +154,16 @@ export async function recordStakeActivated(input: ActivatedInput): Promise<void>
     languagesAdded: repoLanguages,
     reviewerLanguagesNow: mergedLanguages,
   });
+
+  // Track 1 compliance hook (fire-and-forget; failures already logged).
+  void onStakeLocked({
+    repoSlug: input.repoSlug,
+    prId: input.prId,
+    reviewerAddr: input.reviewerAddr,
+    reviewerBasename: basename,
+    amountUsdc: input.amountUsdc,
+    attestationUid: input.attestationUid,
+  });
 }
 
 /**
@@ -216,6 +227,19 @@ export async function recordStakeSlashed(input: SlashedInput): Promise<void> {
   });
 
   console.log('[lifecycle] slash recorded', { stakeId: input.stakeId, txHash: input.txHashResolve });
+
+  // Track 1 compliance hook: SOC sees the slash via SIEM in real time.
+  const slashRow = await db.query.reviewers.findFirst({
+    where: eq(reviewers.address, input.reviewerAddr),
+  });
+  void onReviewSlashed({
+    repoSlug: input.repoSlug,
+    prId: input.prId,
+    reviewerAddr: input.reviewerAddr,
+    reviewerBasename: slashRow?.basename ?? null,
+    amountUsdc: input.amountUsdc,
+    attestationUid: input.attestationUid,
+  });
 }
 
 /**
@@ -283,4 +307,17 @@ export async function recordStakeClean(input: CleanInput): Promise<void> {
   });
 
   console.log('[lifecycle] clean release recorded', { stakeId: input.stakeId, txHash: input.txHashResolve });
+
+  // Track 1 compliance hook.
+  const cleanRow = await db.query.reviewers.findFirst({
+    where: eq(reviewers.address, input.reviewerAddr),
+  });
+  void onReviewClean({
+    repoSlug: input.repoSlug,
+    prId: input.prId,
+    reviewerAddr: input.reviewerAddr,
+    reviewerBasename: cleanRow?.basename ?? null,
+    amountUsdc: input.amountUsdc,
+    attestationUid: input.attestationUid,
+  });
 }

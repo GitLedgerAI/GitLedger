@@ -21,6 +21,10 @@ import type { HealthReport } from './services/health';
 import { getProtocolValueReport } from './services/protocolValue';
 import { buildOAuthState, exchangeCodeForToken, fetchGithubLogin, parseAndVerifyState, upsertReviewerFromOAuth } from './services/githubOAuth';
 import { isGitHubAppInstalledForUser } from './services/githubApp';
+import { fetchAuditDownload } from './services/enterpriseAudit';
+import { db } from './db/client';
+import { enterpriseOrgMembers } from './db/schema';
+import { and, eq } from 'drizzle-orm';
 
 type RedisLike = {
   get: (key: string) => Promise<string | null>;
@@ -91,7 +95,7 @@ const promptStakeNotificationSchema = z.object({
 export function createApp(options: AppOptions) {
   const app = new Hono();
 
-  app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type', 'x-wallet-address', 'Authorization'] }));
+  app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type', 'x-wallet-address', 'x-enterprise-org', 'Authorization'] }));
 
   // ── tRPC ────────────────────────────────────────────────────────────────────
 
@@ -186,6 +190,41 @@ export function createApp(options: AppOptions) {
     if (!options.healthCheck) return c.json({ ok: true, service: 'gitledger-backend' });
     const report = await options.healthCheck();
     return c.json(report, report.ok ? 200 : 503);
+  });
+
+  // ── Enterprise audit download ─────────────────────────────────────────────
+  // Streams the rendered audit content (JSON / CSV / HTML-for-PDF) for a
+  // job the caller's wallet has access to. Auth is via x-wallet-address +
+  // x-enterprise-org, same convention as the tRPC routes.
+  app.get('/enterprise/audit/download/:id', async (c) => {
+    const id = c.req.param('id');
+    const orgSlug = (c.req.header('x-enterprise-org') ?? c.req.query('org') ?? '').toLowerCase();
+    const walletAddress = (c.req.header('x-wallet-address') ?? '').toLowerCase();
+
+    if (!id || !orgSlug || !walletAddress) {
+      return c.json({ error: 'missing_required' }, 400);
+    }
+
+    const membership = await db.query.enterpriseOrgMembers.findFirst({
+      where: and(
+        eq(enterpriseOrgMembers.orgSlug, orgSlug),
+        eq(enterpriseOrgMembers.address, walletAddress),
+      ),
+    });
+    if (!membership) return c.json({ error: 'forbidden' }, 403);
+
+    const result = await fetchAuditDownload(orgSlug, id);
+    if (!result.ok || !result.body || !result.mime) {
+      return c.json({ error: result.error ?? 'not_found' }, 404);
+    }
+
+    return new Response(result.body, {
+      status: 200,
+      headers: {
+        'Content-Type': result.mime,
+        'Content-Disposition': `attachment; filename="${result.filename}"`,
+      },
+    });
   });
 
   app.get('/protocol/value', async (c) => {
