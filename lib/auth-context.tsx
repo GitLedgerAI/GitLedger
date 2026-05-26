@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [address, githubSession, isWalletLinking]);
 
   const connectGitHub = useCallback(() => {
-    const api = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001';
+    const api = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'https://gitledger.tech';
     const cb = encodeURIComponent(`${window.location.origin}/auth/callback`);
     const walletParam = address ? `&wallet=${address}` : '';
     window.location.href = `${api}/auth/github?callback=${cb}${walletParam}`;
