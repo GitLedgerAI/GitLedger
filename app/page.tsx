@@ -211,7 +211,7 @@ export default function Home() {
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_90px_90px_100px] gap-2 sm:gap-4 px-5 py-3.5 border-b border-white/[0.04] hover:bg-[#111113] transition-colors duration-200">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-6 h-6 bg-[#1a1c1f] border border-white/[0.08] flex items-center justify-center shrink-0">
-                    <span className="text-[9px] font-mono font-bold text-white/25">{item.basename[0].toUpperCase()}</span>
+                    <span className="text-[9px] font-mono font-bold text-white/25">{item.basename?.[0]?.toUpperCase() ?? '?'}</span>
                   </div>
                   <div className="min-w-0">
                     <span className="text-xs font-mono text-white/70 truncate">{item.basename}</span>
